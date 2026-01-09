@@ -401,6 +401,10 @@ MonoBehaviour:
   markerPrefab: {fileID: 5807421763807556200, guid: c00a79ab17e6546449c0f89d610a1e7a, type: 3}
   cratePrefab: {fileID: 1561251448111391853, guid: f89643c5660811744838c7d2dd77e438, type: 3}
   barrelPrefab: {fileID: 3829460142775095232, guid: dabecdcd596a7334d8e3ba0fa56759e5, type: 3}
+  vfxFireball: {fileID: 5848335706960441983, guid: ee435f643dd8e13478f18e8eb126bb08, type: 3}
+  vfxIceWall: {fileID: 6466303380954877913, guid: 474b06383d8e0ff49b0f08858e9f4ed4, type: 3}
+  vfxForceBeam: {fileID: 0}
+  vfxExplosion: {fileID: 2220857667710782952, guid: f020137f1cde9fe4d9a9ec351df44de9, type: 3}
 --- !u!4 &1292443604
 Transform:
   m_ObjectHideFlags: 0
