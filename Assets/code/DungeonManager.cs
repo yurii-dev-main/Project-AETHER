@@ -8,24 +8,38 @@ public class DungeonManager : MonoBehaviour
     [Header("Session Data")]
     public int CurrentLevel = 1;
 
-    // Сохраняем состояние героя между уровнями
+    public List<SpellBlueprint> SavedSpellbook = new List<SpellBlueprint>();
+            if (SavedSpellbook.Count == 0)
+            {
+                InitializeDefaultSpells();
+            }
+        InitializeDefaultSpells();
+
+    void InitializeDefaultSpells()
+    {
+        SavedSpellbook.Clear();
+        SavedSpellbook.Add(new SpellBlueprint("Fireball", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, 10, 5, Color.red));
+        SavedSpellbook.Add(new SpellBlueprint("Ice", Element.Ice, MotionType.ArcingProjectile, ShapeType.Cross, 1, 20, 10, Color.cyan));
+        SavedSpellbook.Add(new SpellBlueprint("Force", Element.Force, MotionType.InstantRay, ShapeType.SingleTile, 1, 5, 2, Color.magenta));
+    }
+}
     public int SavedHP = 100;
     public int SavedMana = 50;
     public int SavedHeat = 0;
 
-    // Сохраняем собранные спеллы (пока упрощенно - просто список индексов или типов)
-    // В полной версии тут будет List<SpellBlueprint>
+    // Г‘Г®ГµГ°Г Г­ГїГҐГ¬ Г±Г®ГЎГ°Г Г­Г­Г»ГҐ Г±ГЇГҐГ«Г«Г» (ГЇГ®ГЄГ  ГіГЇГ°Г®Г№ГҐГ­Г­Г® - ГЇГ°Г®Г±ГІГ® Г±ГЇГЁГ±Г®ГЄ ГЁГ­Г¤ГҐГЄГ±Г®Гў ГЁГ«ГЁ ГІГЁГЇГ®Гў)
+    // Г‚ ГЇГ®Г«Г­Г®Г© ГўГҐГ°Г±ГЁГЁ ГІГіГІ ГЎГіГ¤ГҐГІ List<SpellBlueprint>
 
     void Awake()
     {
         if (Instance == null)
         {
             Instance = this;
-            DontDestroyOnLoad(gameObject); // Живет вечно
+            DontDestroyOnLoad(gameObject); // Г†ГЁГўГҐГІ ГўГҐГ·Г­Г®
         }
         else
         {
-            Destroy(gameObject); // Убиваем дубликаты при перезагрузке
+            Destroy(gameObject); // Г“ГЎГЁГўГ ГҐГ¬ Г¤ГіГЎГ«ГЁГЄГ ГІГ» ГЇГ°ГЁ ГЇГҐГ°ГҐГ§Г ГЈГ°ГіГ§ГЄГҐ
         }
     }
 
@@ -38,7 +52,7 @@ public class DungeonManager : MonoBehaviour
 
         Debug.Log($"LEVEL {CurrentLevel} STARTING...");
 
-        // Перезагружаем сцену (но так как Manager жив, данные останутся)
+        // ГЏГҐГ°ГҐГ§Г ГЈГ°ГіГ¦Г ГҐГ¬ Г±Г¶ГҐГ­Гі (Г­Г® ГІГ ГЄ ГЄГ ГЄ Manager Г¦ГЁГў, Г¤Г Г­Г­Г»ГҐ Г®Г±ГІГ Г­ГіГІГ±Гї)
         UnityEngine.SceneManagement.SceneManager.LoadScene(0);
     }
 
