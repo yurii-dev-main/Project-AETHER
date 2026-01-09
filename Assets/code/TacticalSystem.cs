@@ -142,17 +142,6 @@ public class TacticalSystem : MonoBehaviour
     private List<GameObject> _spawnedMarkers = new List<GameObject>();
     private BattleState _currentState = BattleState.PlayerPlanning;
 
-
-        if (DungeonManager.Instance != null)
-        {
-            _spellbook = DungeonManager.Instance.SavedSpellbook;
-        }
-        else
-        {
-            Debug.LogWarning("No DungeonManager found! Using temporary spellbook.");
-            _spellbook.Add(new SpellBlueprint("Temp Fire", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, 10, 5, Color.red));
-        }
-
     private List<SpellBlueprint> _spellbook = new List<SpellBlueprint>();
     private int _selectedSpellIndex = -1;
     private bool _isGrimoireOpen = false;
@@ -165,6 +154,19 @@ public class TacticalSystem : MonoBehaviour
     private SpellModule _workShape;
     private SpellModule _workElement;
     private int _workPowerLevel = 1;
+
+    void Awake()
+    {
+        if (DungeonManager.Instance != null)
+        {
+            _spellbook = DungeonManager.Instance.SavedSpellbook;
+        }
+        else
+        {
+            Debug.LogWarning("No DungeonManager found! Using temporary spellbook.");
+            _spellbook.Add(new SpellBlueprint("Temp Fire", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, 10, 5, Color.red));
+        }
+    }
 
     void Start()
     {

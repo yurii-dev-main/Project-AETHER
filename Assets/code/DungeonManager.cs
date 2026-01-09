@@ -9,20 +9,6 @@ public class DungeonManager : MonoBehaviour
     public int CurrentLevel = 1;
 
     public List<SpellBlueprint> SavedSpellbook = new List<SpellBlueprint>();
-            if (SavedSpellbook.Count == 0)
-            {
-                InitializeDefaultSpells();
-            }
-        InitializeDefaultSpells();
-
-    void InitializeDefaultSpells()
-    {
-        SavedSpellbook.Clear();
-        SavedSpellbook.Add(new SpellBlueprint("Fireball", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, 10, 5, Color.red));
-        SavedSpellbook.Add(new SpellBlueprint("Ice", Element.Ice, MotionType.ArcingProjectile, ShapeType.Cross, 1, 20, 10, Color.cyan));
-        SavedSpellbook.Add(new SpellBlueprint("Force", Element.Force, MotionType.InstantRay, ShapeType.SingleTile, 1, 5, 2, Color.magenta));
-    }
-}
     public int SavedHP = 100;
     public int SavedMana = 50;
     public int SavedHeat = 0;
@@ -36,6 +22,10 @@ public class DungeonManager : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject); // Æèâåò âå÷íî
+            if (SavedSpellbook.Count == 0)
+            {
+                InitializeDefaultSpells();
+            }
         }
         else
         {
@@ -63,5 +53,13 @@ public class DungeonManager : MonoBehaviour
         SavedMana = 50;
         SavedHeat = 0;
         UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+    }
+
+    void InitializeDefaultSpells()
+    {
+        SavedSpellbook.Clear();
+        SavedSpellbook.Add(new SpellBlueprint("Fireball", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, 10, 5, Color.red));
+        SavedSpellbook.Add(new SpellBlueprint("Ice", Element.Ice, MotionType.ArcingProjectile, ShapeType.Cross, 1, 20, 10, Color.cyan));
+        SavedSpellbook.Add(new SpellBlueprint("Force", Element.Force, MotionType.InstantRay, ShapeType.SingleTile, 1, 5, 2, Color.magenta));
     }
 }
