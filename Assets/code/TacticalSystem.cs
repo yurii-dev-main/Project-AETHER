@@ -14,7 +14,7 @@ public struct GridPos
     public override int GetHashCode() => (x, y).GetHashCode();
 }
 
-// --- 1. ОПРЕДЕЛЕНИЯ И СТРУКТУРЫ ---
+// --- 1. ГЋГЏГђГ…Г„Г…Г‹Г…ГЌГ€Гџ Г€ Г‘Г’ГђГ“ГЉГ’Г“ГђГ› ---
 
 public enum Element { None, Fire, Water, Ice, Earth, Air, Force }
 public enum MotionType { LinearProjectile, ArcingProjectile, InstantRay, SelfBuff }
@@ -93,7 +93,7 @@ public class TileData : MonoBehaviour
     public Element CurrentElement = Element.None;
 }
 
-// --- ГЛАВНЫЙ КЛАСС ---
+// --- ГѓГ‹ГЂГ‚ГЌГ›Г‰ ГЉГ‹ГЂГ‘Г‘ ---
 
 public class TacticalSystem : MonoBehaviour
 {
@@ -116,7 +116,7 @@ public class TacticalSystem : MonoBehaviour
     public Transform HeroTransform => _heroInstance != null ? _heroInstance.transform : null;
     public Vector3 GetGridCenter() => new Vector3(width * tileSize / 2f - tileSize / 2, 0, height * tileSize / 2f - tileSize / 2);
 
-    // Данные
+    // Г„Г Г­Г­Г»ГҐ
     private Dictionary<GridPos, GameObject> _gridVisuals = new Dictionary<GridPos, GameObject>();
     private Dictionary<GridPos, TileData> _tileDataMap = new Dictionary<GridPos, TileData>();
     private HashSet<GridPos> _walls = new HashSet<GridPos>();
@@ -136,7 +136,17 @@ public class TacticalSystem : MonoBehaviour
     private List<GameObject> _spawnedMarkers = new List<GameObject>();
     private BattleState _currentState = BattleState.PlayerPlanning;
 
-    // Гримуар
+
+        if (DungeonManager.Instance != null)
+        {
+            _spellbook = DungeonManager.Instance.SavedSpellbook;
+        }
+        else
+        {
+            Debug.LogWarning("No DungeonManager found! Using temporary spellbook.");
+            _spellbook.Add(new SpellBlueprint("Temp Fire", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, 10, 5, Color.red));
+        }
+
     private List<SpellBlueprint> _spellbook = new List<SpellBlueprint>();
     private int _selectedSpellIndex = -1;
     private bool _isGrimoireOpen = false;
@@ -218,7 +228,7 @@ public class TacticalSystem : MonoBehaviour
         DrawUnitLabel(_enemyInstance, _enemyStats);
     }
 
-    // --- ГЕНЕРАЦИЯ ---
+    // --- ГѓГ…ГЌГ…ГђГЂГ–Г€Гџ ---
     void GenerateGrid()
     {
         _gridVisuals.Clear();
@@ -315,13 +325,13 @@ public class TacticalSystem : MonoBehaviour
         _enemyInstance.SetActive(false);
     }
 
-    // --- ОБНОВЛЕННАЯ ОБРАБОТКА ОБЪЕКТОВ ---
+    // --- ГЋГЃГЌГЋГ‚Г‹Г…ГЌГЌГЂГџ ГЋГЃГђГЂГЃГЋГ’ГЉГЂ ГЋГЃГљГ…ГЉГ’ГЋГ‚ ---
     IEnumerator HitObject(InteractiveObject obj, Element element, int damage)
     {
         obj.Shake();
         yield return new WaitForSeconds(0.2f);
 
-        // 1. ЛЕД (Заморозка)
+        // 1. Г‹Г…Г„ (Г‡Г Г¬Г®Г°Г®Г§ГЄГ )
         if (element == Element.Ice)
         {
             if (!obj.IsFrozen)
@@ -332,7 +342,7 @@ public class TacticalSystem : MonoBehaviour
             yield break;
         }
 
-        // 2. ОГОНЬ
+        // 2. ГЋГѓГЋГЌГњ
         if (element == Element.Fire)
         {
             if (obj.IsFrozen)
@@ -356,7 +366,7 @@ public class TacticalSystem : MonoBehaviour
             yield break;
         }
 
-        // 3. СИЛА (Force) - ТОЛЧОК
+        // 3. Г‘Г€Г‹ГЂ (Force) - Г’ГЋГ‹Г—ГЋГЉ
         if (element == Element.Force)
         {
             yield return PushObjectRoutine(obj);
@@ -367,7 +377,7 @@ public class TacticalSystem : MonoBehaviour
     {
         GridPos startPos = obj.Pos;
 
-        // Вычисляем направление от героя к объекту
+        // Г‚Г»Г·ГЁГ±Г«ГїГҐГ¬ Г­Г ГЇГ°Г ГўГ«ГҐГ­ГЁГҐ Г®ГІ ГЈГҐГ°Г®Гї ГЄ Г®ГЎГєГҐГЄГІГі
         Vector3 dirVector = (GetWorldPos(startPos) - GetWorldPos(_heroPos)).normalized;
         int pushX = 0;
         int pushY = 0;
@@ -378,10 +388,10 @@ public class TacticalSystem : MonoBehaviour
 
         Debug.Log($"Pushing Object Dir: {pushX}, {pushY}");
 
-        int slideDistance = 4; // Макс дальность полета
+        int slideDistance = 4; // ГЊГ ГЄГ± Г¤Г Г«ГјГ­Г®Г±ГІГј ГЇГ®Г«ГҐГІГ 
         bool hitSomething = false;
 
-        // Удаляем объект из старой клетки (логически), чтобы он мог двигаться
+        // Г“Г¤Г Г«ГїГҐГ¬ Г®ГЎГєГҐГЄГІ ГЁГ§ Г±ГІГ Г°Г®Г© ГЄГ«ГҐГІГЄГЁ (Г«Г®ГЈГЁГ·ГҐГ±ГЄГЁ), Г·ГІГ®ГЎГ» Г®Г­ Г¬Г®ГЈ Г¤ГўГЁГЈГ ГІГјГ±Гї
         _interactiveObjects.Remove(startPos);
         _walls.Remove(startPos);
 
@@ -389,7 +399,7 @@ public class TacticalSystem : MonoBehaviour
         {
             GridPos nextPos = new GridPos(obj.Pos.x + pushX, obj.Pos.y + pushY);
 
-            // Проверка столкновений
+            // ГЏГ°Г®ГўГҐГ°ГЄГ  Г±ГІГ®Г«ГЄГ­Г®ГўГҐГ­ГЁГ©
             if (!IsValid(nextPos) || _walls.Contains(nextPos))
             {
                 hitSomething = true;
@@ -397,7 +407,7 @@ public class TacticalSystem : MonoBehaviour
                 break;
             }
 
-            // Попадание во врага
+            // ГЏГ®ГЇГ Г¤Г Г­ГЁГҐ ГўГ® ГўГ°Г ГЈГ 
             if (nextPos == _enemyPos && _enemyInstance.activeSelf)
             {
                 hitSomething = true;
@@ -406,7 +416,7 @@ public class TacticalSystem : MonoBehaviour
                 break;
             }
 
-            // Попадание в героя
+            // ГЏГ®ГЇГ Г¤Г Г­ГЁГҐ Гў ГЈГҐГ°Г®Гї
             if (nextPos == _heroPos)
             {
                 hitSomething = true;
@@ -415,7 +425,7 @@ public class TacticalSystem : MonoBehaviour
                 break;
             }
 
-            // Движение
+            // Г„ГўГЁГ¦ГҐГ­ГЁГҐ
             Vector3 startWorld = obj.transform.position;
             Vector3 endWorld = GetWorldPos(nextPos) + Vector3.up * 0.5f;
             float t = 0;
@@ -429,23 +439,23 @@ public class TacticalSystem : MonoBehaviour
             obj.Pos = nextPos;
         }
 
-        // Финал полета
+        // Г”ГЁГ­Г Г« ГЇГ®Г«ГҐГІГ 
         if (hitSomething)
         {
             if (obj.Type == ObjType.Barrel && !obj.IsFrozen)
             {
-                // Бочка врезалась - взрыв!
+                // ГЃГ®Г·ГЄГ  ГўГ°ГҐГ§Г Г«Г Г±Гј - ГўГ§Г°Г»Гў!
                 yield return TriggerExplosion(obj.Pos);
             }
             else
             {
-                // Объект разбился
+                // ГЋГЎГєГҐГЄГІ Г°Г Г§ГЎГЁГ«Г±Гї
                 Destroy(obj.gameObject);
             }
         }
         else
         {
-            // Остановился на новой позиции
+            // ГЋГ±ГІГ Г­Г®ГўГЁГ«Г±Гї Г­Г  Г­Г®ГўГ®Г© ГЇГ®Г§ГЁГ¶ГЁГЁ
             _interactiveObjects.Add(obj.Pos, obj);
             _walls.Add(obj.Pos);
         }
@@ -464,11 +474,11 @@ public class TacticalSystem : MonoBehaviour
 
     IEnumerator TriggerExplosion(GridPos center)
     {
-        // Уничтожаем саму бочку
+        // Г“Г­ГЁГ·ГІГ®Г¦Г ГҐГ¬ Г±Г Г¬Гі ГЎГ®Г·ГЄГі
         if (_interactiveObjects.ContainsKey(center))
             DestroyObject(center);
 
-        // Создаем зону поражения (3x3)
+        // Г‘Г®Г§Г¤Г ГҐГ¬ Г§Г®Г­Гі ГЇГ®Г°Г Г¦ГҐГ­ГЁГї (3x3)
         List<GridPos> boomZone = new List<GridPos>();
         for (int x = -1; x <= 1; x++)
         {
@@ -478,12 +488,12 @@ public class TacticalSystem : MonoBehaviour
             }
         }
 
-        // Эффект взрыва
+        // ГќГґГґГҐГЄГІ ГўГ§Г°Г»ГўГ 
         foreach (var p in boomZone)
         {
             StartCoroutine(FlashTile(p, new Color(1f, 0.5f, 0f)));
 
-            // Урон врагам
+            // Г“Г°Г®Г­ ГўГ°Г ГЈГ Г¬
             if (p == _enemyPos && _enemyInstance.activeSelf)
             {
                 _enemyStats.TakeDamage(40);
@@ -493,7 +503,7 @@ public class TacticalSystem : MonoBehaviour
                 _heroStats.TakeDamage(20);
             }
 
-            // Цепная реакция!
+            // Г–ГҐГЇГ­Г Гї Г°ГҐГ ГЄГ¶ГЁГї!
             if (_interactiveObjects.ContainsKey(p))
             {
                 yield return new WaitForSeconds(0.1f);
@@ -502,7 +512,7 @@ public class TacticalSystem : MonoBehaviour
         }
     }
 
-    // --- ПРОЦЕССОР ЗАКЛИНАНИЙ (ОБНОВЛЕН) ---
+    // --- ГЏГђГЋГ–Г…Г‘Г‘ГЋГђ Г‡ГЂГЉГ‹Г€ГЌГЂГЌГ€Г‰ (ГЋГЃГЌГЋГ‚Г‹Г…ГЌ) ---
     IEnumerator ProcessSpell(SpellBlueprint spell, GridPos targetCenter)
     {
         Color c = spell.VisualColor;
@@ -517,7 +527,7 @@ public class TacticalSystem : MonoBehaviour
             yield return FlashTile(targetCenter, c);
         }
 
-        // Определение зоны
+        // ГЋГЇГ°ГҐГ¤ГҐГ«ГҐГ­ГЁГҐ Г§Г®Г­Г»
         List<GridPos> affectedTiles = new List<GridPos>();
         if (spell.Shape == ShapeType.SingleTile)
             affectedTiles.Add(targetCenter);
@@ -552,13 +562,13 @@ public class TacticalSystem : MonoBehaviour
             if (!IsValid(tilePos)) continue;
             StartCoroutine(FlashTile(tilePos, c));
 
-            // 1. ИНТЕРАКТИВНЫЕ ОБЪЕКТЫ (ОБНОВЛЕНО)
+            // 1. Г€ГЌГ’Г…ГђГЂГЉГ’Г€Г‚ГЌГ›Г… ГЋГЃГљГ…ГЉГ’Г› (ГЋГЃГЌГЋГ‚Г‹Г…ГЌГЋ)
             if (_interactiveObjects.ContainsKey(tilePos))
             {
                 yield return HitObject(_interactiveObjects[tilePos], spell.MainElement, 10 * spell.PowerLevel);
             }
 
-            // 2. Реакция с полом
+            // 2. ГђГҐГ ГЄГ¶ГЁГї Г± ГЇГ®Г«Г®Г¬
             if (_tileDataMap.ContainsKey(tilePos))
             {
                 TileData tile = _tileDataMap[tilePos];
@@ -576,7 +586,7 @@ public class TacticalSystem : MonoBehaviour
                 }
             }
 
-            // 3. Урон врагу
+            // 3. Г“Г°Г®Г­ ГўГ°Г ГЈГі
             if (tilePos == _enemyPos && _enemyInstance.activeSelf)
             {
                 float mult = spell.PowerLevel == 2 ? 1.5f : (spell.PowerLevel == 3 ? 2.5f : 1f);
@@ -649,6 +659,16 @@ public class TacticalSystem : MonoBehaviour
         SpellBlueprint newSpell = new SpellBlueprint(spellName, _workElement.ElementData, _workMotion.MotionData, _workShape.ShapeData, _workPowerLevel, finalMana, finalHeat, _workElement.VisualColor);
         while (_spellbook.Count <= slotIndex) _spellbook.Add(null);
         _spellbook[slotIndex] = newSpell;
+
+        if (DungeonManager.Instance != null)
+        {
+            while (DungeonManager.Instance.SavedSpellbook.Count <= slotIndex)
+            {
+                DungeonManager.Instance.SavedSpellbook.Add(null);
+            }
+            DungeonManager.Instance.SavedSpellbook[slotIndex] = newSpell;
+            Debug.Log("Grimoire Saved to DungeonManager.");
+        }
     }
 
     void DrawHUD()
