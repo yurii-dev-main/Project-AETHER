@@ -113,6 +113,12 @@ public class TacticalSystem : MonoBehaviour
     public GameObject cratePrefab;
     public GameObject barrelPrefab;
 
+    [Header("VFX")]
+    public GameObject vfxFireball;
+    public GameObject vfxIceWall;
+    public GameObject vfxForceBeam;
+    public GameObject vfxExplosion;
+
     public Transform HeroTransform => _heroInstance != null ? _heroInstance.transform : null;
     public Vector3 GetGridCenter() => new Vector3(width * tileSize / 2f - tileSize / 2, 0, height * tileSize / 2f - tileSize / 2);
 
@@ -478,6 +484,13 @@ public class TacticalSystem : MonoBehaviour
         if (_interactiveObjects.ContainsKey(center))
             DestroyObject(center);
 
+        if (vfxExplosion != null)
+        {
+            Vector3 centerPos = GetWorldPos(center) + Vector3.up * 0.5f;
+            GameObject explosion = Instantiate(vfxExplosion, centerPos, Quaternion.identity);
+            Destroy(explosion, 2f);
+        }
+
         // Ñîçäàåì çîíó ïîðàæåíèÿ (3x3)
         List<GridPos> boomZone = new List<GridPos>();
         for (int x = -1; x <= 1; x++)
@@ -583,6 +596,7 @@ public class TacticalSystem : MonoBehaviour
                     tile.CurrentElement = Element.Ice;
                     _walls.Add(tilePos);
                     ResetTileColor(tilePos);
+                    CastIceWall(tilePos);
                 }
             }
 
@@ -845,9 +859,14 @@ public class TacticalSystem : MonoBehaviour
     // --- HELPERS ---
     IEnumerator ShootProjectile(GameObject shooter, GridPos target, Color color, float size)
     {
-        GameObject projectile = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        projectile.transform.localScale = Vector3.one * size;
-        projectile.GetComponent<Renderer>().material.color = color;
+        GameObject prefab = GetProjectileVfxPrefab(color);
+        if (prefab == null)
+        {
+            Debug.LogWarning("Projectile VFX prefab is not assigned.");
+            yield break;
+        }
+        GameObject projectile = Instantiate(prefab);
+        projectile.transform.localScale = projectile.transform.localScale * size;
         Vector3 startPos = shooter.transform.position + Vector3.up * 0.5f;
         projectile.transform.position = startPos;
         Vector3 targetWorld = GetWorldPos(target) + Vector3.up * 0.5f;
@@ -859,6 +878,25 @@ public class TacticalSystem : MonoBehaviour
             yield return null;
         }
         Destroy(projectile);
+    }
+
+    GameObject GetProjectileVfxPrefab(Color color)
+    {
+        if (color == Color.cyan) return vfxIceWall;
+        if (color == Color.magenta) return vfxForceBeam;
+        return vfxFireball;
+    }
+
+    void CastIceWall(GridPos targetPos)
+    {
+        if (vfxIceWall == null)
+        {
+            Debug.LogWarning("Ice wall VFX prefab is not assigned.");
+            return;
+        }
+        Vector3 spawnPos = GetWorldPos(targetPos);
+        GameObject wall = Instantiate(vfxIceWall, spawnPos, Quaternion.identity);
+        _dynamicWalls.Add(wall);
     }
 
     IEnumerator MoveUnit(GameObject unit, GridPos targetStep)
