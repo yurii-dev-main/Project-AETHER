@@ -539,6 +539,59 @@ public class TacticalSystem : MonoBehaviour
         }
         else if (spell.Motion == MotionType.InstantRay)
         {
+            if (vfxForceBeam != null && _heroInstance != null)
+            {
+                Vector3 startWorld = GetWorldPos(_heroPos) + Vector3.up * 0.5f;
+                GridPos endGridPos = targetCenter;
+                if (spell.Shape == ShapeType.LineBeam)
+                {
+                    Vector3 dir = (GetWorldPos(targetCenter) - GetWorldPos(_heroPos)).normalized;
+                    int dx = 0; int dy = 0;
+                    if (Mathf.Abs(dir.x) > Mathf.Abs(dir.z))
+                        dx = (int)Mathf.Sign(dir.x);
+                    else
+                        dy = (int)Mathf.Sign(dir.z);
+                    if (dx != 0 || dy != 0)
+                    {
+                        GridPos checkPos = _heroPos;
+                        GridPos lastValid = _heroPos;
+                        int maxSteps = Mathf.Max(width, height);
+                        for (int k = 0; k < maxSteps; k++)
+                        {
+                            checkPos.x += dx; checkPos.y += dy;
+                            if (!IsValid(checkPos))
+                            {
+                                endGridPos = lastValid;
+                                break;
+                            }
+                            lastValid = checkPos;
+                            if (_walls.Contains(checkPos) && !_interactiveObjects.ContainsKey(checkPos))
+                            {
+                                endGridPos = checkPos;
+                                break;
+                            }
+                            endGridPos = lastValid;
+                        }
+                    }
+                }
+                Vector3 endWorld = GetWorldPos(endGridPos) + Vector3.up * 0.5f;
+                GameObject beamInstance = Instantiate(vfxForceBeam, startWorld, Quaternion.identity);
+                LaserFade laser = beamInstance.GetComponent<LaserFade>();
+                if (laser != null)
+                {
+                    laser.SetPositions(startWorld, endWorld);
+                }
+                else
+                {
+                    LineRenderer lineRenderer = beamInstance.GetComponent<LineRenderer>();
+                    if (lineRenderer != null)
+                    {
+                        lineRenderer.positionCount = 2;
+                        lineRenderer.SetPosition(0, startWorld);
+                        lineRenderer.SetPosition(1, endWorld);
+                    }
+                }
+            }
             yield return FlashTile(targetCenter, c);
         }
 
