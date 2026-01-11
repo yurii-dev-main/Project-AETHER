@@ -117,6 +117,7 @@ public class TacticalSystem : MonoBehaviour
     public GameObject vfxFireball;
     public GameObject vfxIceWall;
     public GameObject vfxForceBeam;
+    public GameObject vfxForcePillar;
     public GameObject vfxExplosion;
 
     public Transform HeroTransform => _heroInstance != null ? _heroInstance.transform : null;
@@ -230,6 +231,27 @@ public class TacticalSystem : MonoBehaviour
 
     void OnGUI()
     {
+        if (_currentState == BattleState.Won)
+        {
+            GUI.Box(new Rect(0, 0, Screen.width, Screen.height), "");
+            float w = 320;
+            float h = 180;
+            float x = (Screen.width - w) / 2;
+            float y = (Screen.height - h) / 2;
+            GUI.Box(new Rect(x, y, w, h), "VICTORY");
+            if (GUI.Button(new Rect(x + 40, y + 100, w - 80, 40), "NEXT LEVEL"))
+            {
+                if (DungeonManager.Instance != null && _heroStats != null)
+                {
+                    DungeonManager.Instance.CompleteLevel(_heroStats.currentHP, _heroStats.currentMana, _heroStats.currentHeat);
+                }
+                else
+                {
+                    UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+                }
+            }
+            return;
+        }
         if (_isGrimoireOpen) { DrawGrimoireUI(); return; }
         DrawHUD();
         DrawUnitLabel(_heroInstance, _heroStats);
@@ -453,7 +475,7 @@ public class TacticalSystem : MonoBehaviour
             if (obj.Type == ObjType.Barrel && !obj.IsFrozen)
             {
                 // Áî÷êà âðåçàëàñü - âçðûâ!
-                yield return TriggerExplosion(obj.Pos);
+                yield return TriggerExplosion(obj.Pos, obj);
             }
             else
             {
@@ -480,17 +502,16 @@ public class TacticalSystem : MonoBehaviour
         }
     }
 
-    IEnumerator TriggerExplosion(GridPos center)
+    IEnumerator TriggerExplosion(GridPos center, InteractiveObject specificObject = null)
     {
         // Óíè÷òîæàåì ñàìó áî÷êó
-        if (_interactiveObjects.ContainsKey(center))
-            DestroyObject(center);
-
-        if (vfxExplosion != null)
+        if (specificObject != null)
         {
-            Vector3 centerPos = GetWorldPos(center) + Vector3.up * 0.5f;
-            GameObject explosion = Instantiate(vfxExplosion, centerPos, Quaternion.identity);
-            Destroy(explosion, 2f);
+            Destroy(specificObject.gameObject);
+        }
+        else if (_interactiveObjects.ContainsKey(center))
+        {
+            DestroyObject(center);
         }
 
         // Ñîçäàåì çîíó ïîðàæåíèÿ (3x3)
@@ -506,6 +527,12 @@ public class TacticalSystem : MonoBehaviour
         // Ýôôåêò âçðûâà
         foreach (var p in boomZone)
         {
+            if (vfxExplosion != null)
+            {
+                GameObject boom = Instantiate(vfxExplosion, GetWorldPos(p) + Vector3.up * 0.5f, Quaternion.identity);
+                Destroy(boom, 2f);
+            }
+
             StartCoroutine(FlashTile(p, new Color(1f, 0.5f, 0f)));
 
             // Óðîí âðàãàì
@@ -539,60 +566,38 @@ public class TacticalSystem : MonoBehaviour
         }
         else if (spell.Motion == MotionType.InstantRay)
         {
-            if (vfxForceBeam != null && _heroInstance != null)
+            if (spell.Shape == ShapeType.LineBeam && vfxForceBeam != null && _heroInstance != null)
             {
-                Vector3 startWorld = GetWorldPos(_heroPos) + Vector3.up * 0.5f;
-                GridPos endGridPos = targetCenter;
-                if (spell.Shape == ShapeType.LineBeam)
+                Vector3 start = _heroInstance.transform.position + Vector3.up * 0.8f;
+                Vector3 dir = (GetWorldPos(targetCenter) - GetWorldPos(_heroPos)).normalized;
+                Vector3 end = start + dir * 20f;
+
+                GameObject beam = Instantiate(vfxForceBeam, Vector3.zero, Quaternion.identity);
+                LaserFade fade = beam.GetComponent<LaserFade>();
+                if (fade != null)
+                    fade.SetPositions(start, end);
+                else
                 {
-                    Vector3 dir = (GetWorldPos(targetCenter) - GetWorldPos(_heroPos)).normalized;
-                    int dx = 0; int dy = 0;
-                    if (Mathf.Abs(dir.x) > Mathf.Abs(dir.z))
-                        dx = (int)Mathf.Sign(dir.x);
-                    else
-                        dy = (int)Mathf.Sign(dir.z);
-                    if (dx != 0 || dy != 0)
+                    LineRenderer lr = beam.GetComponent<LineRenderer>();
+                    if (lr != null)
                     {
-                        GridPos checkPos = _heroPos;
-                        GridPos lastValid = _heroPos;
-                        int maxSteps = Mathf.Max(width, height);
-                        for (int k = 0; k < maxSteps; k++)
-                        {
-                            checkPos.x += dx; checkPos.y += dy;
-                            if (!IsValid(checkPos))
-                            {
-                                endGridPos = lastValid;
-                                break;
-                            }
-                            lastValid = checkPos;
-                            if (_walls.Contains(checkPos) && !_interactiveObjects.ContainsKey(checkPos))
-                            {
-                                endGridPos = checkPos;
-                                break;
-                            }
-                            endGridPos = lastValid;
-                        }
+                        lr.SetPosition(0, start);
+                        lr.SetPosition(1, end);
                     }
                 }
-                Vector3 endWorld = GetWorldPos(endGridPos) + Vector3.up * 0.5f;
-                GameObject beamInstance = Instantiate(vfxForceBeam, startWorld, Quaternion.identity);
-                LaserFade laser = beamInstance.GetComponent<LaserFade>();
-                if (laser != null)
+                yield return new WaitForSeconds(0.2f);
+            }
+            else
+            {
+                if (vfxForcePillar != null)
                 {
-                    laser.SetPositions(startWorld, endWorld);
+                    Instantiate(vfxForcePillar, GetWorldPos(targetCenter), Quaternion.identity);
                 }
                 else
                 {
-                    LineRenderer lineRenderer = beamInstance.GetComponent<LineRenderer>();
-                    if (lineRenderer != null)
-                    {
-                        lineRenderer.positionCount = 2;
-                        lineRenderer.SetPosition(0, startWorld);
-                        lineRenderer.SetPosition(1, endWorld);
-                    }
+                    yield return FlashTile(targetCenter, c);
                 }
             }
-            yield return FlashTile(targetCenter, c);
         }
 
         // Îïðåäåëåíèå çîíû
@@ -610,11 +615,9 @@ public class TacticalSystem : MonoBehaviour
         else if (spell.Shape == ShapeType.LineBeam)
         {
             Vector3 dir = (GetWorldPos(targetCenter) - GetWorldPos(_heroPos)).normalized;
-            int dx = 0; int dy = 0;
-            if (Mathf.Abs(dir.x) > Mathf.Abs(dir.z))
-                dx = (int)Mathf.Sign(dir.x);
-            else
-                dy = (int)Mathf.Sign(dir.z);
+            int dx = Mathf.RoundToInt(dir.x);
+            int dy = Mathf.RoundToInt(dir.z);
+            if (dx == 0 && dy == 0) dy = 1;
             GridPos checkPos = _heroPos;
             for (int k = 0; k < width; k++)
             {
@@ -871,10 +874,21 @@ public class TacticalSystem : MonoBehaviour
             yield return new WaitForSeconds(0.2f);
         }
         ClearQueue();
-        if (_enemyStats.currentHP <= 0)
+        bool enemiesRemain = false;
+        if (_enemyInstance != null && _enemyStats != null && _enemyStats.currentHP > 0)
+        {
+            enemiesRemain = true;
+        }
+
+        if (!enemiesRemain)
+        {
             _currentState = BattleState.Won;
+            Debug.Log("VICTORY STATE REACHED!");
+        }
         else
+        {
             StartCoroutine(ExecuteEnemyTurn());
+        }
     }
 
     IEnumerator ExecuteEnemyTurn()
