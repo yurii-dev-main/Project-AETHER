@@ -172,11 +172,26 @@ public class TacticalSystem : MonoBehaviour
     void Start()
     {
         InitLibrary();
+
+        // Настраиваем дефолтные модули для верстака (чтобы там не было пусто)
         _workMotion = _libraryMotion[0];
         _workShape = _libraryShape[0];
         _workElement = _libraryElement[0];
         _workPowerLevel = 1;
-        CompileSpellToSlot(0);
+
+        // ЛОГИКА ЗАГРУЗКИ
+        if (DungeonManager.Instance != null && DungeonManager.Instance.SavedSpellbook.Count > 0)
+        {
+            // Если в менеджере уже есть спеллы — берем их
+            _spellbook = DungeonManager.Instance.SavedSpellbook;
+            Debug.Log("Spellbook loaded from DungeonManager.");
+        }
+        else
+        {
+            // Если это первый запуск (или менеджера нет) — создаем стартовый спелл
+            Debug.LogWarning("New Game or No Manager. Creating default spell.");
+            CompileSpellToSlot(0);
+        }
 
         GenerateGrid();
         SpawnUnits();
@@ -661,31 +676,68 @@ public class TacticalSystem : MonoBehaviour
                 }
             }
 
-            // 3. Óðîí âðàãó
-            if (tilePos == _enemyPos && _enemyInstance.activeSelf)
+            // 3. Óðîí âðàãàì
+            foreach (var enemy in new[] { _enemyInstance })
             {
-                float mult = spell.PowerLevel == 2 ? 1.5f : (spell.PowerLevel == 3 ? 2.5f : 1f);
-                int damage = Mathf.RoundToInt(10 * mult);
-                _enemyStats.TakeDamage(damage);
+                if (enemy == null || !enemy.activeSelf) continue;
 
-                if (spell.MainElement == Element.Force)
+                GridPos enPos = GetGridPosFromWorld(enemy.transform.position);
+
+                // Если тайл эффекта совпал с позицией врага
+                if (tilePos == enPos)
                 {
-                    Vector3 dir = (GetWorldPos(tilePos) - GetWorldPos(_heroPos)).normalized;
-                    int pushX = 0;
-                    int pushY = 0;
-                    if (Mathf.Abs(dir.x) > Mathf.Abs(dir.z)) pushX = (int)Mathf.Sign(dir.x);
-                    else pushY = (int)Mathf.Sign(dir.z);
+                    float mult = spell.PowerLevel == 2 ? 1.5f : (spell.PowerLevel == 3 ? 2.5f : 1f);
+                    int damage = Mathf.RoundToInt(10 * mult);
 
-                    GridPos pushDest = new GridPos(tilePos.x + pushX, tilePos.y + pushY);
-                    if (IsValid(pushDest) && !_walls.Contains(pushDest) && !_interactiveObjects.ContainsKey(pushDest))
+                    // Если это Force, базовый урон меньше, но есть толчок
+                    if (spell.MainElement == Element.Force) damage = 5;
+
+                    UnitStats enemyStats = enemy.GetComponent<UnitStats>();
+                    if (enemyStats != null)
                     {
-                        yield return MoveUnit(_enemyInstance, pushDest);
+                        enemyStats.TakeDamage(damage);
                     }
-                    else
+                    enemy.SetActive(true);
+
+                    // --- ЛОГИКА ТОЛЧКА ---
+                    if (spell.MainElement == Element.Force && _heroInstance != null)
                     {
-                        Debug.Log("Slammed into wall!");
-                        _enemyStats.TakeDamage(15);
-                        StartCoroutine(FlashTile(tilePos, Color.magenta));
+                        // 1. Вычисляем направление толчка (От Героя к Врагу)
+                        Vector3 pushDirVector = (enemy.transform.position - _heroInstance.transform.position).normalized;
+
+                        // 2. Округляем до осей (чтобы толкать строго по сетке)
+                        int px = 0;
+                        int py = 0;
+                        if (Mathf.Abs(pushDirVector.x) > Mathf.Abs(pushDirVector.z)) px = (int)Mathf.Sign(pushDirVector.x);
+                        else py = (int)Mathf.Sign(pushDirVector.z);
+
+                        // 3. Целевая клетка
+                        GridPos pushDest = new GridPos(enPos.x + px, enPos.y + py);
+
+                        Debug.Log($"Force Hit! Pushing Enemy to [{pushDest.x}, {pushDest.y}]");
+
+                        // 4. Проверка валидности
+                        // Можно толкать, если: клетка в карте И (нет стены ИЛИ есть ящик/бочка) И нет другого врага
+                        bool isBlockedByWall = _walls.Contains(pushDest) && !_interactiveObjects.ContainsKey(pushDest);
+                        bool isBlockedByUnit = (pushDest == _heroPos);
+
+                        if (IsValid(pushDest) && !isBlockedByWall && !isBlockedByUnit)
+                        {
+                            yield return MoveUnit(enemy, pushDest);
+                            _enemyPos = pushDest;
+                            // Важно: Позиция _enemyPos в классе TacticalSystem больше не используется для логики,
+                            // так как мы берем позицию реального объекта через GetGridPosFromWorld.
+                            // Это решает проблему рассинхрона!
+                        }
+                        else
+                        {
+                            Debug.Log("Push Blocked! Bonus Wall Damage.");
+                            if (enemyStats != null)
+                            {
+                                enemyStats.TakeDamage(10);
+                            }
+                            StartCoroutine(FlashTile(tilePos, Color.magenta));
+                        }
                     }
                 }
             }
