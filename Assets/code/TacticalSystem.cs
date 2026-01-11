@@ -214,13 +214,19 @@ public class TacticalSystem : MonoBehaviour
 
     void Update()
     {
+        UpdateUI();
+
         if (_currentState == BattleState.Won || _currentState == BattleState.Lost)
         {
             if (Input.GetKeyDown(KeyCode.R)) UnityEngine.SceneManagement.SceneManager.LoadScene(0);
             return;
         }
 
-        if (Input.GetKeyDown(KeyCode.Tab)) _isGrimoireOpen = !_isGrimoireOpen;
+        if (Input.GetKeyDown(KeyCode.Tab))
+        {
+            _isGrimoireOpen = !_isGrimoireOpen;
+            UpdateUI();
+        }
         if (_isGrimoireOpen) return;
         if (_currentState != BattleState.PlayerPlanning) return;
 
@@ -242,35 +248,6 @@ public class TacticalSystem : MonoBehaviour
         }
 
         if (Input.GetMouseButtonDown(1)) ClearQueue();
-    }
-
-    void OnGUI()
-    {
-        if (_currentState == BattleState.Won)
-        {
-            GUI.Box(new Rect(0, 0, Screen.width, Screen.height), "");
-            float w = 320;
-            float h = 180;
-            float x = (Screen.width - w) / 2;
-            float y = (Screen.height - h) / 2;
-            GUI.Box(new Rect(x, y, w, h), "VICTORY");
-            if (GUI.Button(new Rect(x + 40, y + 100, w - 80, 40), "NEXT LEVEL"))
-            {
-                if (DungeonManager.Instance != null && _heroStats != null)
-                {
-                    DungeonManager.Instance.CompleteLevel(_heroStats.currentHP, _heroStats.currentMana, _heroStats.currentHeat);
-                }
-                else
-                {
-                    UnityEngine.SceneManagement.SceneManager.LoadScene(0);
-                }
-            }
-            return;
-        }
-        if (_isGrimoireOpen) { DrawGrimoireUI(); return; }
-        DrawHUD();
-        DrawUnitLabel(_heroInstance, _heroStats);
-        DrawUnitLabel(_enemyInstance, _enemyStats);
     }
 
     // --- ÃÅÍÅÐÀÖÈß ---
@@ -778,43 +755,6 @@ public class TacticalSystem : MonoBehaviour
         return line;
     }
 
-    // --- UI ---
-    void DrawGrimoireUI()
-    {
-        GUI.Box(new Rect(0, 0, Screen.width, Screen.height), "");
-        float w = 700; float h = 550;
-        float x = (Screen.width - w) / 2;
-        float y = (Screen.height - h) / 2;
-        GUI.Box(new Rect(x, y, w, h), "SPELL COMPILER");
-        GUILayout.BeginArea(new Rect(x + 20, y + 40, w - 40, h - 60));
-        GUILayout.BeginHorizontal();
-        GUILayout.BeginVertical("box", GUILayout.Width(180));
-        foreach (var m in _libraryMotion)
-            if (GUILayout.Button($"{m.Name} ({m.ManaCost})")) _workMotion = m;
-        GUILayout.Space(10);
-        foreach (var m in _libraryShape)
-            if (GUILayout.Button($"{m.Name} (+{m.ManaCost})")) _workShape = m;
-        GUILayout.Space(10);
-        foreach (var m in _libraryElement)
-            if (GUILayout.Button(m.Name)) _workElement = m;
-        GUILayout.EndVertical();
-        GUILayout.BeginVertical("box", GUILayout.Width(250));
-        GUILayout.Label($"<b>DRV:</b> {(_workMotion != null ? _workMotion.Name : "-")}");
-        GUILayout.Label($"<b>MOD:</b> {(_workShape != null ? _workShape.Name : "-")}");
-        GUILayout.Label($"<b>COR:</b> {(_workElement != null ? _workElement.Name : "-")}");
-        GUILayout.Space(10);
-        GUILayout.Label($"OVERCHARGE: {_workPowerLevel}");
-        _workPowerLevel = Mathf.RoundToInt(GUILayout.HorizontalSlider(_workPowerLevel, 1, 3));
-        GUILayout.FlexibleSpace();
-        if (GUILayout.Button("SAVE [1]")) CompileSpellToSlot(0);
-        if (GUILayout.Button("SAVE [2]")) CompileSpellToSlot(1);
-        if (GUILayout.Button("SAVE [3]")) CompileSpellToSlot(2);
-        GUILayout.EndVertical();
-        GUILayout.EndHorizontal();
-        if (GUILayout.Button("CLOSE [TAB]")) _isGrimoireOpen = false;
-        GUILayout.EndArea();
-    }
-
     void CompileSpellToSlot(int slotIndex)
     {
         if (_workMotion == null || _workShape == null || _workElement == null) return;
@@ -836,34 +776,6 @@ public class TacticalSystem : MonoBehaviour
             DungeonManager.Instance.SavedSpellbook[slotIndex] = newSpell;
             Debug.Log("Grimoire Saved to DungeonManager.");
         }
-    }
-
-    void DrawHUD()
-    {
-        GUI.Box(new Rect(10, 10, 260, 500), "TACTICAL OS");
-        GUILayout.BeginArea(new Rect(20, 40, 240, 460));
-        if (_heroStats != null)
-        {
-            GUILayout.Label($"MANA: {_heroStats.currentMana} | HEAT: {_heroStats.currentHeat}");
-            if (_heroStats.isOverheated) GUILayout.Label("<color=red><b>[ LOCKED ]</b></color>");
-        }
-        GUILayout.Space(5);
-        if (GUILayout.Button("GRIMOIRE [TAB]")) _isGrimoireOpen = true;
-        GUILayout.Space(10);
-        for (int i = 0; i < _spellbook.Count; i++)
-        {
-            if (_spellbook[i] == null) continue;
-            string style = _selectedSpellIndex == i ? "box" : "label";
-            GUILayout.Label($"[{i + 1}] {_spellbook[i].Name}", GUI.skin.GetStyle(style));
-        }
-        GUILayout.Space(10);
-        for (int i = 0; i < _commandQueue.Count; i++)
-        {
-            ActionCommand cmd = _commandQueue[i];
-            string txt = cmd.Type == "MOVE" ? "MOVE" : (cmd.SpellData != null ? cmd.SpellData.Name : cmd.Type);
-            GUILayout.Label($"{i + 1}. {txt} >> {cmd.TargetPos.x},{cmd.TargetPos.y}");
-        }
-        GUILayout.EndArea();
     }
 
     // --- PLANNING & INPUT ---
@@ -1160,11 +1072,53 @@ public class TacticalSystem : MonoBehaviour
         }
     }
 
-    void DrawUnitLabel(GameObject unit, UnitStats stats)
+    void UpdateUI()
     {
-        if (unit == null || stats == null || !unit.activeSelf) return;
-        Vector3 screenPos = Camera.main.WorldToScreenPoint(unit.transform.position + Vector3.up * 1.5f);
-        if (screenPos.z > 0)
-            GUI.Label(new Rect(screenPos.x - 50, Screen.height - screenPos.y, 100, 30), $"HP: {stats.currentHP}");
+        if (UIManager.Instance == null) return;
+
+        if (_heroStats != null)
+        {
+            UIManager.Instance.UpdateStats(
+                _heroStats.currentHP,
+                _heroStats.currentMana,
+                _heroStats.currentHeat,
+                _heroStats.maxHeat,
+                _heroStats.isOverheated
+            );
+        }
+
+        UIManager.Instance.UpdatePipeline(_commandQueue);
+        UIManager.Instance.UpdateSpellDeck(_spellbook, _selectedSpellIndex);
+        UIManager.Instance.ToggleGrimoire(_isGrimoireOpen);
+
+        string motionName = _workMotion != null ? _workMotion.Name : "-";
+        string shapeName = _workShape != null ? _workShape.Name : "-";
+        string elementName = _workElement != null ? _workElement.Name : "-";
+        int previewMana = 0;
+        int previewHeat = 0;
+        if (_workMotion != null && _workShape != null)
+        {
+            int baseMana = _workMotion.ManaCost + _workShape.ManaCost;
+            int baseHeat = _workMotion.HeatCost + _workShape.HeatCost;
+            previewMana = baseMana * _workPowerLevel;
+            previewHeat = (int)(baseHeat * Mathf.Pow(_workPowerLevel, 1.5f));
+        }
+
+        UIManager.Instance.UpdateGrimoirePreview(
+            motionName,
+            shapeName,
+            elementName,
+            previewMana,
+            previewHeat
+        );
+
+        if (_currentState == BattleState.Won)
+        {
+            UIManager.Instance.ShowVictory(true);
+        }
+        else if (_currentState == BattleState.Lost)
+        {
+            UIManager.Instance.ShowVictory(false);
+        }
     }
 }
