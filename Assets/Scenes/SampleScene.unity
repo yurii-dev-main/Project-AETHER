@@ -403,7 +403,7 @@ MonoBehaviour:
   barrelPrefab: {fileID: 3829460142775095232, guid: dabecdcd596a7334d8e3ba0fa56759e5, type: 3}
   vfxFireball: {fileID: 5848335706960441983, guid: ee435f643dd8e13478f18e8eb126bb08, type: 3}
   vfxIceWall: {fileID: 6466303380954877913, guid: 474b06383d8e0ff49b0f08858e9f4ed4, type: 3}
-  vfxForceBeam: {fileID: 0}
+  vfxForceBeam: {fileID: 484315684226608658, guid: 9843911356fa0fe438e7ae7714ea6cc1, type: 3}
   vfxExplosion: {fileID: 2220857667710782952, guid: f020137f1cde9fe4d9a9ec351df44de9, type: 3}
 --- !u!4 &1292443604
 Transform:
