@@ -591,7 +591,8 @@ public class TacticalSystem : MonoBehaviour
             {
                 if (vfxForcePillar != null)
                 {
-                    Instantiate(vfxForcePillar, GetWorldPos(targetCenter), Quaternion.identity);
+                    GameObject pillar = Instantiate(vfxForcePillar, GetWorldPos(targetCenter), Quaternion.identity);
+                    Destroy(pillar, 2.0f);
                 }
                 else
                 {
@@ -614,17 +615,19 @@ public class TacticalSystem : MonoBehaviour
         }
         else if (spell.Shape == ShapeType.LineBeam)
         {
-            Vector3 dir = (GetWorldPos(targetCenter) - GetWorldPos(_heroPos)).normalized;
-            int dx = Mathf.RoundToInt(dir.x);
-            int dy = Mathf.RoundToInt(dir.z);
-            if (dx == 0 && dy == 0) dy = 1;
-            GridPos checkPos = _heroPos;
-            for (int k = 0; k < width; k++)
+            Vector3 dirVector = (GetWorldPos(targetCenter) - GetWorldPos(_heroPos)).normalized;
+
+            float dist = Mathf.Max(width, height) * 1.5f;
+            Vector3 endWorld = GetWorldPos(_heroPos) + dirVector * (dist * tileSize);
+            GridPos endGrid = GetGridPosFromWorld(endWorld);
+
+            List<GridPos> rawLine = GetCellsOnLine(_heroPos, endGrid);
+            foreach (var cell in rawLine)
             {
-                checkPos.x += dx; checkPos.y += dy;
-                if (!IsValid(checkPos)) break;
-                if (_walls.Contains(checkPos) && !_interactiveObjects.ContainsKey(checkPos)) break;
-                affectedTiles.Add(checkPos);
+                if (cell == _heroPos) continue;
+                if (!IsValid(cell)) break;
+                if (_walls.Contains(cell) && !_interactiveObjects.ContainsKey(cell)) break;
+                affectedTiles.Add(cell);
             }
         }
 
@@ -668,19 +671,59 @@ public class TacticalSystem : MonoBehaviour
                 if (spell.MainElement == Element.Force)
                 {
                     Vector3 dir = (GetWorldPos(tilePos) - GetWorldPos(_heroPos)).normalized;
-                    GridPos pushDest = new GridPos(tilePos.x + (int)Mathf.Sign(dir.x), tilePos.y + (int)Mathf.Sign(dir.z));
-                    if (!_walls.Contains(pushDest) && IsValid(pushDest))
+                    int pushX = 0;
+                    int pushY = 0;
+                    if (Mathf.Abs(dir.x) > Mathf.Abs(dir.z)) pushX = (int)Mathf.Sign(dir.x);
+                    else pushY = (int)Mathf.Sign(dir.z);
+
+                    GridPos pushDest = new GridPos(tilePos.x + pushX, tilePos.y + pushY);
+                    if (IsValid(pushDest) && !_walls.Contains(pushDest) && !_interactiveObjects.ContainsKey(pushDest))
                     {
                         yield return MoveUnit(_enemyInstance, pushDest);
-                        _enemyPos = pushDest;
                     }
                     else
                     {
-                        _enemyStats.TakeDamage(10);
+                        Debug.Log("Slammed into wall!");
+                        _enemyStats.TakeDamage(15);
+                        StartCoroutine(FlashTile(tilePos, Color.magenta));
                     }
                 }
             }
         }
+    }
+
+    List<GridPos> GetCellsOnLine(GridPos start, GridPos end)
+    {
+        List<GridPos> line = new List<GridPos>();
+
+        int x0 = start.x; int y0 = start.y;
+        int x1 = end.x; int y1 = end.y;
+
+        int dx = Mathf.Abs(x1 - x0);
+        int dy = Mathf.Abs(y1 - y0);
+        int sx = x0 < x1 ? 1 : -1;
+        int sy = y0 < y1 ? 1 : -1;
+        int err = dx - dy;
+
+        while (true)
+        {
+            line.Add(new GridPos(x0, y0));
+
+            if (x0 == x1 && y0 == y1) break;
+
+            int e2 = 2 * err;
+            if (e2 > -dy)
+            {
+                err -= dy;
+                x0 += sx;
+            }
+            if (e2 < dx)
+            {
+                err += dx;
+                y0 += sy;
+            }
+        }
+        return line;
     }
 
     // --- UI ---
