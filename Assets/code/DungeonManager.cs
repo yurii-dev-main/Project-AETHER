@@ -58,8 +58,8 @@ public class DungeonManager : MonoBehaviour
     void InitializeDefaultSpells()
     {
         SavedSpellbook.Clear();
-        SavedSpellbook.Add(new SpellBlueprint("Fireball", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, 10, 5, Color.red));
-        SavedSpellbook.Add(new SpellBlueprint("Ice", Element.Ice, MotionType.ArcingProjectile, ShapeType.Cross, 1, 20, 10, Color.cyan));
-        SavedSpellbook.Add(new SpellBlueprint("Force", Element.Force, MotionType.InstantRay, ShapeType.SingleTile, 1, 5, 2, Color.magenta));
+        SavedSpellbook.Add(new SpellBlueprint("Fireball", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, false, 10, 5, Color.red));
+        SavedSpellbook.Add(new SpellBlueprint("Ice", Element.Ice, MotionType.ArcingProjectile, ShapeType.Cross, 1, false, 20, 10, Color.cyan));
+        SavedSpellbook.Add(new SpellBlueprint("Air", Element.Air, MotionType.InstantRay, ShapeType.SingleTile, 1, false, 5, 2, Color.white));
     }
 }

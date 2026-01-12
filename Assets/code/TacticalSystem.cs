@@ -16,7 +16,7 @@ public struct GridPos
 
 // --- 1. ÎÏÐÅÄÅËÅÍÈß È ÑÒÐÓÊÒÓÐÛ ---
 
-public enum Element { None, Fire, Water, Ice, Earth, Air, Force }
+public enum Element { None, Fire, Water, Ice, Earth, Air }
 public enum MotionType { LinearProjectile, ArcingProjectile, InstantRay, SelfBuff }
 public enum ShapeType { SingleTile, Cross, LineBeam }
 
@@ -28,17 +28,19 @@ public class SpellBlueprint
     public MotionType Motion;
     public ShapeType Shape;
     public int PowerLevel;
+    public bool IsOptimized;
     public int ManaCost;
     public int HeatCost;
     public Color VisualColor;
 
-    public SpellBlueprint(string name, Element el, MotionType mot, ShapeType sh, int power, int mana, int heat, Color col)
+    public SpellBlueprint(string name, Element el, MotionType mot, ShapeType sh, int power, bool optimized, int mana, int heat, Color col)
     {
         Name = name;
         MainElement = el;
         Motion = mot;
         Shape = sh;
         PowerLevel = power;
+        IsOptimized = optimized;
         ManaCost = mana;
         HeatCost = heat;
         VisualColor = col;
@@ -139,11 +141,12 @@ public class TacticalSystem : MonoBehaviour
     private UnitStats _enemyStats;
     private EnemyAI _enemyAI;
 
-    private List<ActionCommand> _commandQueue = new List<ActionCommand>();
+    // ПУБЛИЧНЫÅ ÄÀÍÍÛÅ ÄËß UI
+    public List<ActionCommand> CommandQueue = new List<ActionCommand>();
     private List<GameObject> _spawnedMarkers = new List<GameObject>();
     private BattleState _currentState = BattleState.PlayerPlanning;
 
-    private List<SpellBlueprint> _spellbook = new List<SpellBlueprint>();
+    public List<SpellBlueprint> Spellbook = new List<SpellBlueprint>();
     private int _selectedSpellIndex = -1;
     private bool _isGrimoireOpen = false;
 
@@ -151,10 +154,12 @@ public class TacticalSystem : MonoBehaviour
     private List<SpellModule> _libraryShape = new List<SpellModule>();
     private List<SpellModule> _libraryElement = new List<SpellModule>();
 
-    private SpellModule _workMotion;
-    private SpellModule _workShape;
-    private SpellModule _workElement;
-    private int _workPowerLevel = 1;
+    // ÂÅÐÑÒÀÊ (ÏÓÁËÈ×ÍÛÉ ÄËß UI)
+    public SpellModule WorkMotion;
+    public SpellModule WorkShape;
+    public SpellModule WorkElement;
+    public int WorkPowerLevel = 1;
+    public bool WorkIsOptimized = false;
 
     // Геттеры для UI
     public List<SpellModule> GetMotionLibrary() => _libraryMotion;
@@ -164,12 +169,12 @@ public class TacticalSystem : MonoBehaviour
     {
         if (DungeonManager.Instance != null)
         {
-            _spellbook = DungeonManager.Instance.SavedSpellbook;
+            Spellbook = DungeonManager.Instance.SavedSpellbook;
         }
         else
         {
             Debug.LogWarning("No DungeonManager found! Using temporary spellbook.");
-            _spellbook.Add(new SpellBlueprint("Temp Fire", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, 10, 5, Color.red));
+            Spellbook.Add(new SpellBlueprint("Temp Fire", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, false, 10, 5, Color.red));
         }
     }
 
@@ -178,16 +183,17 @@ public class TacticalSystem : MonoBehaviour
         InitLibrary();
 
         // Настраиваем дефолтные модули для верстака (чтобы там не было пусто)
-        _workMotion = _libraryMotion[0];
-        _workShape = _libraryShape[0];
-        _workElement = _libraryElement[0];
-        _workPowerLevel = 1;
+        WorkMotion = _libraryMotion[0];
+        WorkShape = _libraryShape[0];
+        WorkElement = _libraryElement[0];
+        WorkPowerLevel = 1;
+        WorkIsOptimized = false;
 
         // ЛОГИКА ЗАГРУЗКИ
         if (DungeonManager.Instance != null && DungeonManager.Instance.SavedSpellbook.Count > 0)
         {
             // Если в менеджере уже есть спеллы — берем их
-            _spellbook = DungeonManager.Instance.SavedSpellbook;
+            Spellbook = DungeonManager.Instance.SavedSpellbook;
             Debug.Log("Spellbook loaded from DungeonManager.");
         }
         else
@@ -213,7 +219,7 @@ public class TacticalSystem : MonoBehaviour
 
         _libraryElement.Add(SpellModule.CreateElement("Fire", Element.Fire, Color.red));
         _libraryElement.Add(SpellModule.CreateElement("Ice", Element.Ice, Color.cyan));
-        _libraryElement.Add(SpellModule.CreateElement("Force", Element.Force, Color.magenta));
+        _libraryElement.Add(SpellModule.CreateElement("Air", Element.Air, Color.white));
     }
 
     void Update()
@@ -239,7 +245,7 @@ public class TacticalSystem : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.Alpha1 + i))
             {
-                if (i < _spellbook.Count) _selectedSpellIndex = i;
+                if (i < Spellbook.Count) _selectedSpellIndex = i;
             }
         }
 
@@ -247,12 +253,26 @@ public class TacticalSystem : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
         {
-            if (_commandQueue.Count == 0) _commandQueue.Add(new ActionCommand("WAIT", _heroPos));
+            if (CommandQueue.Count == 0) CommandQueue.Add(new ActionCommand("WAIT", _heroPos));
             StartCoroutine(ExecutePlayerTurn());
         }
 
         if (Input.GetMouseButtonDown(1)) ClearQueue();
     }
+
+    // --- ÌÅÒÎÄÛ ÄËß UI ---
+    public void UI_SelectModule(int typeIndex, int index)
+    {
+        if (typeIndex == 0 && index < _libraryMotion.Count) WorkMotion = _libraryMotion[index];
+        if (typeIndex == 1 && index < _libraryShape.Count) WorkShape = _libraryShape[index];
+        if (typeIndex == 2 && index < _libraryElement.Count) WorkElement = _libraryElement[index];
+    }
+
+    public void UI_SetPower(float val) => WorkPowerLevel = Mathf.RoundToInt(val);
+
+    public void UI_Compile(int slot) => CompileSpellToSlot(slot);
+
+    public void UI_ToggleOptimization(bool isOpt) => WorkIsOptimized = isOpt;
 
     // --- ÃÅÍÅÐÀÖÈß ---
     void GenerateGrid()
@@ -392,8 +412,8 @@ public class TacticalSystem : MonoBehaviour
             yield break;
         }
 
-        // 3. ÑÈËÀ (Force) - ÒÎË×ÎÊ
-        if (element == Element.Force)
+        // 3. AIR - ÒÎË×ÎÊ
+        if (element == Element.Air)
         {
             yield return PushObjectRoutine(obj);
         }
@@ -556,45 +576,54 @@ public class TacticalSystem : MonoBehaviour
         Color c = spell.VisualColor;
         float projectileSize = 0.3f * spell.PowerLevel;
 
-        if (spell.Motion == MotionType.LinearProjectile || spell.Motion == MotionType.ArcingProjectile)
-        {
-            yield return ShootProjectile(_heroInstance, targetCenter, c, projectileSize);
-        }
-        else if (spell.Motion == MotionType.InstantRay)
-        {
-            if (spell.Shape == ShapeType.LineBeam && vfxForceBeam != null && _heroInstance != null)
-            {
-                Vector3 start = _heroInstance.transform.position + Vector3.up * 0.8f;
-                Vector3 dir = (GetWorldPos(targetCenter) - GetWorldPos(_heroPos)).normalized;
-                Vector3 end = start + dir * 20f;
+        bool showVFX = !spell.IsOptimized;
 
-                GameObject beam = Instantiate(vfxForceBeam, Vector3.zero, Quaternion.identity);
-                LaserFade fade = beam.GetComponent<LaserFade>();
-                if (fade != null)
-                    fade.SetPositions(start, end);
+        if (showVFX)
+        {
+            if (spell.Motion == MotionType.LinearProjectile || spell.Motion == MotionType.ArcingProjectile)
+            {
+                yield return ShootProjectile(_heroInstance, targetCenter, c, projectileSize);
+            }
+            else if (spell.Motion == MotionType.InstantRay)
+            {
+                if (spell.Shape == ShapeType.LineBeam && vfxForceBeam != null && _heroInstance != null)
+                {
+                    Vector3 start = _heroInstance.transform.position + Vector3.up * 0.8f;
+                    Vector3 dir = (GetWorldPos(targetCenter) - GetWorldPos(_heroPos)).normalized;
+                    Vector3 end = start + dir * 20f;
+
+                    GameObject beam = Instantiate(vfxForceBeam, Vector3.zero, Quaternion.identity);
+                    LaserFade fade = beam.GetComponent<LaserFade>();
+                    if (fade != null)
+                        fade.SetPositions(start, end);
+                    else
+                    {
+                        LineRenderer lr = beam.GetComponent<LineRenderer>();
+                        if (lr != null)
+                        {
+                            lr.SetPosition(0, start);
+                            lr.SetPosition(1, end);
+                        }
+                    }
+                    yield return new WaitForSeconds(0.2f);
+                }
                 else
                 {
-                    LineRenderer lr = beam.GetComponent<LineRenderer>();
-                    if (lr != null)
+                    if (vfxForcePillar != null)
                     {
-                        lr.SetPosition(0, start);
-                        lr.SetPosition(1, end);
+                        GameObject pillar = Instantiate(vfxForcePillar, GetWorldPos(targetCenter), Quaternion.identity);
+                        Destroy(pillar, 2.0f);
+                    }
+                    else
+                    {
+                        yield return FlashTile(targetCenter, c);
                     }
                 }
-                yield return new WaitForSeconds(0.2f);
             }
-            else
-            {
-                if (vfxForcePillar != null)
-                {
-                    GameObject pillar = Instantiate(vfxForcePillar, GetWorldPos(targetCenter), Quaternion.identity);
-                    Destroy(pillar, 2.0f);
-                }
-                else
-                {
-                    yield return FlashTile(targetCenter, c);
-                }
-            }
+        }
+        else
+        {
+            yield return new WaitForSeconds(0.1f);
         }
         GridPos GetGridPosFromWorld(Vector3 worldPos)
         {
@@ -635,7 +664,10 @@ public class TacticalSystem : MonoBehaviour
         foreach (GridPos tilePos in affectedTiles)
         {
             if (!IsValid(tilePos)) continue;
-            StartCoroutine(FlashTile(tilePos, c));
+            if (showVFX)
+                StartCoroutine(FlashTile(tilePos, c));
+            else
+                StartCoroutine(FlashTile(tilePos, new Color(c.r, c.g, c.b, 0.2f)));
 
             // 1. ÈÍÒÅÐÀÊÒÈÂÍÛÅ ÎÁÚÅÊÒÛ (ÎÁÍÎÂËÅÍÎ)
             if (_interactiveObjects.ContainsKey(tilePos))
@@ -675,8 +707,8 @@ public class TacticalSystem : MonoBehaviour
                     float mult = spell.PowerLevel == 2 ? 1.5f : (spell.PowerLevel == 3 ? 2.5f : 1f);
                     int damage = Mathf.RoundToInt(10 * mult);
 
-                    // Если это Force, базовый урон меньше, но есть толчок
-                    if (spell.MainElement == Element.Force) damage = 5;
+                    // AIR почти не наносит урона
+                    if (spell.MainElement == Element.Air) damage = 2;
 
                     UnitStats enemyStats = enemy.GetComponent<UnitStats>();
                     if (enemyStats != null)
@@ -686,7 +718,7 @@ public class TacticalSystem : MonoBehaviour
                     enemy.SetActive(true);
 
                     // --- ЛОГИКА ТОЛЧКА ---
-                    if (spell.MainElement == Element.Force && _heroInstance != null)
+                    if (spell.MainElement == Element.Air && _heroInstance != null)
                     {
                         // 1. Вычисляем направление толчка (От Героя к Врагу)
                         Vector3 pushDirVector = (enemy.transform.position - _heroInstance.transform.position).normalized;
@@ -700,7 +732,7 @@ public class TacticalSystem : MonoBehaviour
                         // 3. Целевая клетка
                         GridPos pushDest = new GridPos(enPos.x + px, enPos.y + py);
 
-                        Debug.Log($"Force Hit! Pushing Enemy to [{pushDest.x}, {pushDest.y}]");
+                        Debug.Log($"Air Hit! Pushing Enemy to [{pushDest.x}, {pushDest.y}]");
 
                         // 4. Проверка валидности
                         // Можно толкать, если: клетка в карте И (нет стены ИЛИ есть ящик/бочка) И нет другого врага
@@ -720,9 +752,9 @@ public class TacticalSystem : MonoBehaviour
                             Debug.Log("Push Blocked! Bonus Wall Damage.");
                             if (enemyStats != null)
                             {
-                                enemyStats.TakeDamage(10);
+                                enemyStats.TakeDamage(15);
                             }
-                            StartCoroutine(FlashTile(tilePos, Color.magenta));
+                            StartCoroutine(FlashTile(tilePos, Color.white));
                         }
                     }
                 }
@@ -766,15 +798,28 @@ public class TacticalSystem : MonoBehaviour
 
     void CompileSpellToSlot(int slotIndex)
     {
-        if (_workMotion == null || _workShape == null || _workElement == null) return;
-        string spellName = $"{_workElement.Name} {_workShape.Name}";
-        int baseMana = _workMotion.ManaCost + _workShape.ManaCost;
-        int baseHeat = _workMotion.HeatCost + _workShape.HeatCost;
-        int finalMana = baseMana * _workPowerLevel;
-        int finalHeat = (int)(baseHeat * Mathf.Pow(_workPowerLevel, 1.5f));
-        SpellBlueprint newSpell = new SpellBlueprint(spellName, _workElement.ElementData, _workMotion.MotionData, _workShape.ShapeData, _workPowerLevel, finalMana, finalHeat, _workElement.VisualColor);
-        while (_spellbook.Count <= slotIndex) _spellbook.Add(null);
-        _spellbook[slotIndex] = newSpell;
+        if (WorkMotion == null || WorkShape == null || WorkElement == null) return;
+        string spellName = $"{WorkElement.Name} {WorkShape.Name}";
+        if (WorkPowerLevel == 3) spellName = $"MAX {WorkElement.Name}";
+        if (WorkIsOptimized) spellName = "Invisible " + spellName;
+        int baseMana = WorkMotion.ManaCost + WorkShape.ManaCost;
+        int baseHeat = WorkMotion.HeatCost + WorkShape.HeatCost;
+        int finalMana = baseMana * WorkPowerLevel;
+        int finalHeat = (int)(baseHeat * Mathf.Pow(WorkPowerLevel, 1.5f));
+        if (WorkIsOptimized) finalMana = Mathf.RoundToInt(finalMana * 0.7f);
+        SpellBlueprint newSpell = new SpellBlueprint(
+            spellName,
+            WorkElement.ElementData,
+            WorkMotion.MotionData,
+            WorkShape.ShapeData,
+            WorkPowerLevel,
+            WorkIsOptimized,
+            finalMana,
+            finalHeat,
+            WorkElement.VisualColor
+        );
+        while (Spellbook.Count <= slotIndex) Spellbook.Add(null);
+        Spellbook[slotIndex] = newSpell;
 
         if (DungeonManager.Instance != null)
         {
@@ -791,13 +836,13 @@ public class TacticalSystem : MonoBehaviour
     void TryPlanCommand(GridPos targetPos)
     {
         GridPos currentPlanEnd = _heroPos;
-        if (_commandQueue.Count > 0)
+        if (CommandQueue.Count > 0)
         {
-            for (int i = _commandQueue.Count - 1; i >= 0; i--)
+            for (int i = CommandQueue.Count - 1; i >= 0; i--)
             {
-                if (_commandQueue[i].Type == "MOVE")
+                if (CommandQueue[i].Type == "MOVE")
                 {
-                    currentPlanEnd = _commandQueue[i].TargetPos;
+                    currentPlanEnd = CommandQueue[i].TargetPos;
                     break;
                 }
             }
@@ -808,15 +853,15 @@ public class TacticalSystem : MonoBehaviour
             List<GridPos> path = Pathfinding.FindPath(currentPlanEnd, targetPos, _walls, width, height);
             if (path != null && path.Count > 0)
             {
-                _commandQueue.Add(new ActionCommand("MOVE", targetPos, path));
+                CommandQueue.Add(new ActionCommand("MOVE", targetPos, path));
                 foreach (GridPos step in path) _gridVisuals[step].GetComponent<Renderer>().material.color = Color.green;
                 SpawnMarker(targetPos, Color.cyan);
             }
         }
         else
         {
-            if (_selectedSpellIndex >= _spellbook.Count || _spellbook[_selectedSpellIndex] == null) return;
-            SpellBlueprint spell = _spellbook[_selectedSpellIndex];
+            if (_selectedSpellIndex >= Spellbook.Count || Spellbook[_selectedSpellIndex] == null) return;
+            SpellBlueprint spell = Spellbook[_selectedSpellIndex];
             if (targetPos == currentPlanEnd && spell.Motion != MotionType.SelfBuff) return;
             if (spell.Motion != MotionType.ArcingProjectile && spell.Shape != ShapeType.LineBeam)
             {
@@ -826,7 +871,7 @@ public class TacticalSystem : MonoBehaviour
                     return;
                 }
             }
-            _commandQueue.Add(new ActionCommand("SPELL", targetPos, null, spell));
+            CommandQueue.Add(new ActionCommand("SPELL", targetPos, null, spell));
             SpawnMarker(targetPos, spell.VisualColor);
         }
     }
@@ -854,7 +899,7 @@ public class TacticalSystem : MonoBehaviour
     IEnumerator ExecutePlayerTurn()
     {
         _currentState = BattleState.PlayerExecuting;
-        foreach (ActionCommand cmd in _commandQueue)
+        foreach (ActionCommand cmd in CommandQueue)
         {
             if (cmd.Type == "WAIT")
             {
@@ -968,7 +1013,7 @@ public class TacticalSystem : MonoBehaviour
     GameObject GetProjectileVfxPrefab(Color color)
     {
         if (color == Color.cyan) return vfxIceWall;
-        if (color == Color.magenta) return vfxForceBeam;
+        if (color == Color.white) return vfxForceBeam;
         return vfxFireball;
     }
 
@@ -1041,7 +1086,7 @@ public class TacticalSystem : MonoBehaviour
 
     void ClearQueue()
     {
-        _commandQueue.Clear();
+        CommandQueue.Clear();
         foreach (var m in _spawnedMarkers) Destroy(m);
         _spawnedMarkers.Clear();
         foreach (var kvp in _gridVisuals) ResetTileColor(kvp.Key);
@@ -1096,21 +1141,26 @@ public class TacticalSystem : MonoBehaviour
             );
         }
 
-        UIManager.Instance.UpdatePipeline(_commandQueue);
-        UIManager.Instance.UpdateSpellDeck(_spellbook, _selectedSpellIndex);
+        UIManager.Instance.UpdatePipeline(CommandQueue);
+        UIManager.Instance.UpdateSpellDeck(Spellbook, _selectedSpellIndex);
         UIManager.Instance.ToggleGrimoire(_isGrimoireOpen);
 
-        string motionName = _workMotion != null ? _workMotion.Name : "-";
-        string shapeName = _workShape != null ? _workShape.Name : "-";
-        string elementName = _workElement != null ? _workElement.Name : "-";
+        string motionName = WorkMotion != null ? WorkMotion.Name : "-";
+        string shapeName = WorkShape != null ? WorkShape.Name : "-";
+        string elementName = WorkElement != null ? WorkElement.Name : "-";
         int previewMana = 0;
         int previewHeat = 0;
-        if (_workMotion != null && _workShape != null)
+        if (WorkMotion != null && WorkShape != null)
         {
-            int baseMana = _workMotion.ManaCost + _workShape.ManaCost;
-            int baseHeat = _workMotion.HeatCost + _workShape.HeatCost;
-            previewMana = baseMana * _workPowerLevel;
-            previewHeat = (int)(baseHeat * Mathf.Pow(_workPowerLevel, 1.5f));
+            int baseMana = WorkMotion.ManaCost + WorkShape.ManaCost;
+            int baseHeat = WorkMotion.HeatCost + WorkShape.HeatCost;
+            previewMana = baseMana * WorkPowerLevel;
+            previewHeat = (int)(baseHeat * Mathf.Pow(WorkPowerLevel, 1.5f));
+        }
+        if (WorkIsOptimized)
+        {
+            previewMana = Mathf.RoundToInt(previewMana * 0.7f);
+            if (elementName != "-") elementName += " (OPT)";
         }
 
         UIManager.Instance.UpdateGrimoirePreview(
