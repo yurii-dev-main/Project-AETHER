@@ -156,6 +156,10 @@ public class TacticalSystem : MonoBehaviour
     private SpellModule _workElement;
     private int _workPowerLevel = 1;
 
+    // Геттеры для UI
+    public List<SpellModule> GetMotionLibrary() => _libraryMotion;
+    public List<SpellModule> GetShapeLibrary() => _libraryShape;
+    public List<SpellModule> GetElementLibrary() => _libraryElement;
     void Awake()
     {
         if (DungeonManager.Instance != null)
@@ -592,7 +596,12 @@ public class TacticalSystem : MonoBehaviour
                 }
             }
         }
-
+        GridPos GetGridPosFromWorld(Vector3 worldPos)
+        {
+            int x = Mathf.RoundToInt(worldPos.x / tileSize);
+            int y = Mathf.RoundToInt(worldPos.z / tileSize); // Используем Z для Y-координаты сетки
+            return new GridPos(x, y);
+        }
         // Îïðåäåëåíèå çîíû
         List<GridPos> affectedTiles = new List<GridPos>();
         if (spell.Shape == ShapeType.SingleTile)
