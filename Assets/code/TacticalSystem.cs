@@ -216,17 +216,39 @@ public class TacticalSystem : MonoBehaviour
 
     void InitLibrary()
     {
-        _libraryMotion.Add(SpellModule.CreateMotion("Projectile", MotionType.LinearProjectile, 5, 2));
-        _libraryMotion.Add(SpellModule.CreateMotion("Grenade (Arc)", MotionType.ArcingProjectile, 10, 5));
-        _libraryMotion.Add(SpellModule.CreateMotion("Raycast (Inst)", MotionType.InstantRay, 10, 5));
+        _libraryMotion.Clear();
+        _libraryShape.Clear();
+        _libraryElement.Clear();
 
-        _libraryShape.Add(SpellModule.CreateShape("Point", ShapeType.SingleTile, 0, 0));
-        _libraryShape.Add(SpellModule.CreateShape("Cross", ShapeType.Cross, 10, 5));
-        _libraryShape.Add(SpellModule.CreateShape("Laser Beam", ShapeType.LineBeam, 15, 10));
+        bool IsMotionUnlocked(string name)
+        {
+            if (DungeonManager.Instance == null) return true;
+            return DungeonManager.Instance.IsMotionUnlocked(name);
+        }
 
-        _libraryElement.Add(SpellModule.CreateElement("Fire", Element.Fire, Color.red));
-        _libraryElement.Add(SpellModule.CreateElement("Ice", Element.Ice, Color.cyan));
-        _libraryElement.Add(SpellModule.CreateElement("Air", Element.Air, Color.white));
+        bool IsShapeUnlocked(string name)
+        {
+            if (DungeonManager.Instance == null) return true;
+            return DungeonManager.Instance.IsShapeUnlocked(name);
+        }
+
+        bool IsElementUnlocked(string name)
+        {
+            if (DungeonManager.Instance == null) return true;
+            return DungeonManager.Instance.IsElementUnlocked(name);
+        }
+
+        if (IsMotionUnlocked("Projectile")) _libraryMotion.Add(SpellModule.CreateMotion("Projectile", MotionType.LinearProjectile, 5, 2));
+        if (IsMotionUnlocked("Grenade (Arc)")) _libraryMotion.Add(SpellModule.CreateMotion("Grenade (Arc)", MotionType.ArcingProjectile, 10, 5));
+        if (IsMotionUnlocked("Raycast (Inst)")) _libraryMotion.Add(SpellModule.CreateMotion("Raycast (Inst)", MotionType.InstantRay, 10, 5));
+
+        if (IsShapeUnlocked("Point")) _libraryShape.Add(SpellModule.CreateShape("Point", ShapeType.SingleTile, 0, 0));
+        if (IsShapeUnlocked("Cross")) _libraryShape.Add(SpellModule.CreateShape("Cross", ShapeType.Cross, 10, 5));
+        if (IsShapeUnlocked("Laser Beam")) _libraryShape.Add(SpellModule.CreateShape("Laser Beam", ShapeType.LineBeam, 15, 10));
+
+        if (IsElementUnlocked("Fire")) _libraryElement.Add(SpellModule.CreateElement("Fire", Element.Fire, Color.red));
+        if (IsElementUnlocked("Ice")) _libraryElement.Add(SpellModule.CreateElement("Ice", Element.Ice, Color.cyan));
+        if (IsElementUnlocked("Air")) _libraryElement.Add(SpellModule.CreateElement("Air", Element.Air, Color.white));
     }
 
     void Update()
