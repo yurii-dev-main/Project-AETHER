@@ -1,13 +1,14 @@
 using UnityEngine;
 
-public enum ObjType { Crate, Barrel }
+public enum ObjType { Crate, Barrel, Door } // Добавили Door
 
 public class InteractiveObject : MonoBehaviour
 {
     public ObjType Type;
     public GridPos Pos;
 
-    public bool IsFrozen = false; // Состояние заморозки
+    public bool IsFrozen = false;
+    public bool IsOpen = false; // Для двери
 
     public void Shake()
     {
@@ -16,17 +17,38 @@ public class InteractiveObject : MonoBehaviour
 
     public void Freeze()
     {
-        if (IsFrozen) return;
+        if (IsFrozen || Type == ObjType.Door) return; // Двери пока не морозим
         IsFrozen = true;
-        GetComponent<Renderer>().material.color = Color.cyan; // Синий
+        GetComponent<Renderer>().material.color = Color.cyan;
     }
 
     public void Unfreeze()
     {
         if (!IsFrozen) return;
         IsFrozen = false;
-        // Возвращаем цвет в зависимости от типа
-        GetComponent<Renderer>().material.color = (Type == ObjType.Barrel) ? Color.red : new Color(0.6f, 0.4f, 0.2f);
+        UpdateColor();
+    }
+
+    // НОВОЕ: Открытие двери
+    public void OpenDoor()
+    {
+        if (Type != ObjType.Door || IsOpen) return;
+
+        IsOpen = true;
+        // Визуально "открываем" (уменьшаем или поворачиваем)
+        transform.localScale = new Vector3(0.2f, 1f, 0.2f);
+        // Меняем цвет на зеленый (проход)
+        GetComponent<Renderer>().material.color = Color.green;
+
+        // Важно: Логику удаления из стен (_walls.Remove) должен делать TacticalSystem
+    }
+
+    public void UpdateColor()
+    {
+        Renderer r = GetComponent<Renderer>();
+        if (Type == ObjType.Barrel) r.material.color = Color.red;
+        else if (Type == ObjType.Crate) r.material.color = new Color(0.6f, 0.4f, 0.2f); // Brown
+        else if (Type == ObjType.Door) r.material.color = new Color(0.4f, 0.2f, 0.1f); // Dark Wood
     }
 
     System.Collections.IEnumerator ShakeRoutine()
