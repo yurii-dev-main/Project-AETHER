@@ -104,4 +104,39 @@ public class UIManager : MonoBehaviour
         if (victoryPanel) victoryPanel.SetActive(isVictory);
         if (gameOverPanel) gameOverPanel.SetActive(!isVictory);
     }
+
+    // Привяжи эту функцию к кнопке на панели победы
+    public void OnNextLevelClicked()
+    {
+        if (DungeonManager.Instance != null && FindFirstObjectByType<TacticalSystem>() != null)
+        {
+            GameObject hero = GameObject.FindWithTag("Player");
+            if (hero != null)
+            {
+                var stats = hero.GetComponent<UnitStats>();
+                DungeonManager.Instance.CompleteLevel(stats.currentHP, stats.currentMana, stats.currentHeat);
+            }
+            else
+            {
+                DungeonManager.Instance.CompleteLevel(100, 50, 0);
+            }
+        }
+        else
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+        }
+    }
+
+    // Привяжи эту функцию к кнопке на панели поражения
+    public void OnRestartClicked()
+    {
+        if (DungeonManager.Instance != null)
+        {
+            DungeonManager.Instance.RestartGame();
+        }
+        else
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+        }
+    }
 }
