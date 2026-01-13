@@ -117,6 +117,7 @@ public class TacticalSystem : MonoBehaviour
     public GameObject markerPrefab;
     public GameObject cratePrefab;
     public GameObject barrelPrefab;
+    public GameObject doorPrefab;
 
     [Header("VFX")]
     public GameObject vfxFireball;
@@ -323,6 +324,28 @@ public class TacticalSystem : MonoBehaviour
             CreateTileVisual(pos, boardHolder.transform, true);
         }
 
+        if (doorPrefab != null && _dungeonData.DoorSpots != null)
+        {
+            foreach (GridPos pos in _dungeonData.DoorSpots)
+            {
+                if (_walls.Contains(pos)) continue;
+                SpawnDoor(pos);
+            }
+        }
+
+        HashSet<GridPos> enemySpawnSet = new HashSet<GridPos>(_enemySpawnPoints);
+        foreach (GridPos pos in _dungeonData.Floors)
+        {
+            if (pos == _heroPos) continue;
+            if (enemySpawnSet.Contains(pos)) continue;
+            if (_dungeonData.DoorSpots.Contains(pos)) continue;
+            if (!IsRoomTile(pos)) continue;
+            if (Random.Range(0, 100) >= objectChance) continue;
+
+            ObjType type = Random.value < 0.5f ? ObjType.Crate : ObjType.Barrel;
+            SpawnObject(pos, type);
+        }
+
         if (fogOfWar != null)
         {
             fogOfWar.InitFog(width, height, tileSize, this);
@@ -377,6 +400,22 @@ public class TacticalSystem : MonoBehaviour
         _walls.Add(pos);
     }
 
+    void SpawnDoor(GridPos pos)
+    {
+        if (doorPrefab == null) return;
+
+        GameObject obj = Instantiate(doorPrefab, GetWorldPos(pos) + Vector3.up * 0.5f, Quaternion.identity);
+        InteractiveObject interact = obj.GetComponent<InteractiveObject>();
+        if (interact == null) interact = obj.AddComponent<InteractiveObject>();
+
+        interact.Type = ObjType.Door;
+        interact.Pos = pos;
+        interact.UpdateColor();
+
+        _interactiveObjects.Add(pos, interact);
+        _walls.Add(pos);
+    }
+
     void SpawnUnits()
     {
         if (_heroInstance != null) Destroy(_heroInstance);
@@ -407,6 +446,13 @@ public class TacticalSystem : MonoBehaviour
     {
         obj.Shake();
         yield return new WaitForSeconds(0.2f);
+
+        if (obj.Type == ObjType.Door && (element == Element.Air || element == Element.Fire))
+        {
+            obj.OpenDoor();
+            _walls.Remove(obj.Pos);
+            yield break;
+        }
 
         // 1. ËÅÄ (Çàìîðîçêà)
         if (element == Element.Ice)
@@ -448,6 +494,26 @@ public class TacticalSystem : MonoBehaviour
         {
             yield return PushObjectRoutine(obj);
         }
+    }
+
+    int CountFloorNeighbors(GridPos pos)
+    {
+        int count = 0;
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                GridPos neighbor = new GridPos(pos.x + dx, pos.y + dy);
+                if (_dungeonData.Floors.Contains(neighbor)) count++;
+            }
+        }
+        return count;
+    }
+
+    bool IsRoomTile(GridPos pos)
+    {
+        return CountFloorNeighbors(pos) > 4;
     }
 
     IEnumerator PushObjectRoutine(InteractiveObject obj)
