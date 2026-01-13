@@ -8,13 +8,17 @@ public class DungeonManager : MonoBehaviour
     [Header("Session Data")]
     public int CurrentLevel = 1;
 
-    public List<SpellBlueprint> SavedSpellbook = new List<SpellBlueprint>();
     public int SavedHP = 100;
     public int SavedMana = 50;
     public int SavedHeat = 0;
 
-    // Ñîõðàíÿåì ñîáðàííûå ñïåëëû (ïîêà óïðîùåííî - ïðîñòî ñïèñîê èíäåêñîâ èëè òèïîâ)
-    // Â ïîëíîé âåðñèè òóò áóäåò List<SpellBlueprint>
+    // GRIMOIRE (collected slots)
+    public List<SpellBlueprint> SavedSpellbook = new List<SpellBlueprint>();
+
+    // LIBRARY (unlocked parts)
+    public List<string> UnlockedMotionIDs = new List<string>();
+    public List<string> UnlockedShapeIDs = new List<string>();
+    public List<string> UnlockedElementIDs = new List<string>();
 
     void Awake()
     {
@@ -24,7 +28,7 @@ public class DungeonManager : MonoBehaviour
             DontDestroyOnLoad(gameObject); // Æèâåò âå÷íî
             if (SavedSpellbook.Count == 0)
             {
-                InitializeDefaultSpells();
+                InitializeNewGame();
             }
         }
         else
@@ -52,14 +56,63 @@ public class DungeonManager : MonoBehaviour
         SavedHP = 100;
         SavedMana = 50;
         SavedHeat = 0;
+        InitializeNewGame();
         UnityEngine.SceneManagement.SceneManager.LoadScene(0);
     }
 
-    void InitializeDefaultSpells()
+    void InitializeNewGame()
     {
+        UnlockedMotionIDs.Clear();
+        UnlockedShapeIDs.Clear();
+        UnlockedElementIDs.Clear();
         SavedSpellbook.Clear();
+
+        UnlockMotion("Projectile");
+        UnlockShape("Point");
+        UnlockElement("Fire");
+
         SavedSpellbook.Add(new SpellBlueprint("Fireball", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, false, 10, 5, Color.red));
-        SavedSpellbook.Add(new SpellBlueprint("Ice", Element.Ice, MotionType.ArcingProjectile, ShapeType.Cross, 1, false, 20, 10, Color.cyan));
-        SavedSpellbook.Add(new SpellBlueprint("Air", Element.Air, MotionType.InstantRay, ShapeType.SingleTile, 1, false, 5, 2, Color.white));
+    }
+
+    public void UnlockMotion(string motionId)
+    {
+        if (!UnlockedMotionIDs.Contains(motionId))
+        {
+            UnlockedMotionIDs.Add(motionId);
+            Debug.Log($"NEW FIRMWARE DETECTED: {motionId}");
+        }
+    }
+
+    public void UnlockShape(string shapeId)
+    {
+        if (!UnlockedShapeIDs.Contains(shapeId))
+        {
+            UnlockedShapeIDs.Add(shapeId);
+            Debug.Log($"NEW FIRMWARE DETECTED: {shapeId}");
+        }
+    }
+
+    public void UnlockElement(string elementId)
+    {
+        if (!UnlockedElementIDs.Contains(elementId))
+        {
+            UnlockedElementIDs.Add(elementId);
+            Debug.Log($"NEW FIRMWARE DETECTED: {elementId}");
+        }
+    }
+
+    public bool IsMotionUnlocked(string motionId)
+    {
+        return UnlockedMotionIDs.Contains(motionId);
+    }
+
+    public bool IsShapeUnlocked(string shapeId)
+    {
+        return UnlockedShapeIDs.Contains(shapeId);
+    }
+
+    public bool IsElementUnlocked(string elementId)
+    {
+        return UnlockedElementIDs.Contains(elementId);
     }
 }
