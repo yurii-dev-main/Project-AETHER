@@ -107,6 +107,9 @@ public class TacticalSystem : MonoBehaviour
     [Range(0, 100)] public int puddleChance = 10;
     [Range(0, 100)] public int objectChance = 15;
 
+    public MapGenerator mapGenerator;
+    public FogOfWar fogOfWar;
+
     [Header("Prefabs")]
     public GameObject tilePrefab;
     public GameObject heroPrefab;
@@ -131,6 +134,9 @@ public class TacticalSystem : MonoBehaviour
     private HashSet<GridPos> _walls = new HashSet<GridPos>();
     private List<GameObject> _dynamicWalls = new List<GameObject>();
     private Dictionary<GridPos, InteractiveObject> _interactiveObjects = new Dictionary<GridPos, InteractiveObject>();
+    private MapGenerator.DungeonData _dungeonData;
+    private List<GridPos> _enemySpawnPoints = new List<GridPos>();
+    private List<GameObject> _enemies = new List<GameObject>();
 
     private GridPos _heroPos = new GridPos(1, 1);
     private GridPos _enemyPos;
@@ -284,58 +290,74 @@ public class TacticalSystem : MonoBehaviour
         _interactiveObjects.Clear();
         foreach (var obj in _dynamicWalls) Destroy(obj);
         _dynamicWalls.Clear();
+        _enemySpawnPoints.Clear();
 
         Transform oldBoard = transform.Find("Board");
         if (oldBoard != null) Destroy(oldBoard.gameObject);
         GameObject boardHolder = new GameObject("Board");
         boardHolder.transform.parent = transform;
 
-        for (int x = 0; x < width; x++)
+        if (mapGenerator == null)
         {
-            for (int y = 0; y < height; y++)
-            {
-                GridPos pos = new GridPos(x, y);
-                Vector3 worldPos = GetWorldPos(pos);
-                GameObject tile = Instantiate(tilePrefab, worldPos, Quaternion.identity);
-                tile.name = $"Tile_{x}_{y}";
-                tile.transform.parent = boardHolder.transform;
-                _gridVisuals.Add(pos, tile);
+            Debug.LogError("MapGenerator is not assigned.");
+            return;
+        }
 
-                TileData data = tile.AddComponent<TileData>();
-                data.Pos = pos;
-                _tileDataMap.Add(pos, data);
+        _dungeonData = mapGenerator.Generate(width, height);
+        if (_dungeonData == null)
+        {
+            Debug.LogError("MapGenerator failed to create dungeon data.");
+            return;
+        }
 
-                bool isStartPos = (x < 5 && y < 5);
-                int rnd = Random.Range(0, 100);
+        _enemySpawnPoints = new List<GridPos>(_dungeonData.EnemySpawnPoints);
+        _heroPos = _dungeonData.StartPos;
 
-                if (!isStartPos)
-                {
-                    if (rnd < wallChance)
-                    {
-                        _walls.Add(pos);
-                        tile.GetComponent<Renderer>().material.color = Color.black;
-                        tile.transform.localScale += Vector3.up * 1.5f;
-                        tile.name = "WALL";
-                    }
-                    else if (rnd < wallChance + puddleChance)
-                    {
-                        data.CurrentElement = Element.Water;
-                        tile.GetComponent<Renderer>().material.color = Color.blue;
-                    }
-                    else if (rnd < wallChance + puddleChance + objectChance)
-                    {
-                        SpawnObject(pos, (Random.Range(0, 2) == 0) ? ObjType.Crate : ObjType.Barrel);
-                    }
-                    else
-                    {
-                        ResetTileColor(pos);
-                    }
-                }
-                else
-                {
-                    ResetTileColor(pos);
-                }
-            }
+        foreach (GridPos pos in _dungeonData.Floors)
+        {
+            CreateTileVisual(pos, boardHolder.transform, false);
+        }
+
+        foreach (GridPos pos in _dungeonData.Walls)
+        {
+            CreateTileVisual(pos, boardHolder.transform, true);
+        }
+
+        if (fogOfWar != null)
+        {
+            fogOfWar.InitFog(width, height, tileSize, this);
+            fogOfWar.UpdateFog(_heroPos);
+        }
+        else
+        {
+            Debug.LogWarning("FogOfWar is not assigned.");
+        }
+    }
+
+    void CreateTileVisual(GridPos pos, Transform parent, bool isWall)
+    {
+        if (_gridVisuals.ContainsKey(pos)) return;
+
+        Vector3 worldPos = GetWorldPos(pos);
+        GameObject tile = Instantiate(tilePrefab, worldPos, Quaternion.identity);
+        tile.name = $"Tile_{pos.x}_{pos.y}";
+        tile.transform.parent = parent;
+        _gridVisuals.Add(pos, tile);
+
+        TileData data = tile.AddComponent<TileData>();
+        data.Pos = pos;
+        _tileDataMap.Add(pos, data);
+
+        if (isWall)
+        {
+            _walls.Add(pos);
+            tile.GetComponent<Renderer>().material.color = Color.black;
+            tile.transform.localScale += Vector3.up * 1.5f;
+            tile.name = "WALL";
+        }
+        else
+        {
+            ResetTileColor(pos);
         }
     }
 
@@ -359,16 +381,25 @@ public class TacticalSystem : MonoBehaviour
     {
         if (_heroInstance != null) Destroy(_heroInstance);
         if (_enemyInstance != null) Destroy(_enemyInstance);
+        _enemies.Clear();
 
         _heroInstance = Instantiate(heroPrefab, GetWorldPos(_heroPos) + Vector3.up * 0.5f, Quaternion.identity);
         _heroStats = _heroInstance.GetComponent<UnitStats>();
 
-        _enemyPos = FindValidSpawnPos(width - 5, width - 1);
+        if (_enemySpawnPoints == null || _enemySpawnPoints.Count == 0)
+        {
+            _enemyPos = FindValidSpawnPos(width - 5, width - 1);
+        }
+        else
+        {
+            _enemyPos = _enemySpawnPoints[0];
+        }
         _enemyInstance = Instantiate(enemyPrefab, GetWorldPos(_enemyPos) + Vector3.up * 0.5f, Quaternion.identity);
         _enemyStats = _enemyInstance.GetComponent<UnitStats>();
         _enemyAI = _enemyInstance.AddComponent<EnemyAI>();
         _enemyAI.Init(this, _enemyStats);
         _enemyInstance.SetActive(false);
+        _enemies.Add(_enemyInstance);
     }
 
     // --- ÎÁÍÎÂËÅÍÍÀß ÎÁÐÀÁÎÒÊÀ ÎÁÚÅÊÒÎÂ ---
@@ -624,12 +655,6 @@ public class TacticalSystem : MonoBehaviour
         else
         {
             yield return new WaitForSeconds(0.1f);
-        }
-        GridPos GetGridPosFromWorld(Vector3 worldPos)
-        {
-            int x = Mathf.RoundToInt(worldPos.x / tileSize);
-            int y = Mathf.RoundToInt(worldPos.z / tileSize); // Используем Z для Y-координаты сетки
-            return new GridPos(x, y);
         }
         // Îïðåäåëåíèå çîíû
         List<GridPos> affectedTiles = new List<GridPos>();
@@ -913,7 +938,11 @@ public class TacticalSystem : MonoBehaviour
                     yield return MoveUnit(_heroInstance, step);
                     _heroPos = step;
                     ResetTileColor(step);
-                    if (Vector3.Distance(GetWorldPos(_heroPos), GetWorldPos(_enemyPos)) < tileSize * 3)
+                    if (fogOfWar != null)
+                    {
+                        fogOfWar.UpdateFog(_heroPos);
+                    }
+                    if (fogOfWar == null && Vector3.Distance(GetWorldPos(_heroPos), GetWorldPos(_enemyPos)) < tileSize * 3)
                         _enemyInstance.SetActive(true);
                 }
             }
@@ -1045,6 +1074,44 @@ public class TacticalSystem : MonoBehaviour
         unit.transform.position = endPos;
     }
 
+    public void UpdateEnemyVisibility(List<GridPos> visibleTiles)
+    {
+        if (visibleTiles == null) return;
+
+        foreach (var enemy in _enemies)
+        {
+            if (enemy == null) continue;
+
+            UnitStats stats = enemy.GetComponent<UnitStats>();
+            if (stats != null && stats.currentHP <= 0)
+            {
+                enemy.SetActive(false);
+                continue;
+            }
+
+            GridPos enemyPos = GetGridPosFromWorld(enemy.transform.position);
+            enemy.SetActive(visibleTiles.Contains(enemyPos));
+        }
+    }
+
+    public void RevealAllEnemies()
+    {
+        foreach (var enemy in _enemies)
+        {
+            if (enemy == null) continue;
+
+            UnitStats stats = enemy.GetComponent<UnitStats>();
+            if (stats != null && stats.currentHP <= 0) continue;
+
+            enemy.SetActive(true);
+        }
+    }
+
+    public bool HasLineOfSightLogic(GridPos start, GridPos end)
+    {
+        return HasLineOfSight(start, end);
+    }
+
     bool HasLineOfSight(GridPos start, GridPos end)
     {
         Vector3 startWorld = GetWorldPos(start) + Vector3.up * 0.5f;
@@ -1060,6 +1127,13 @@ public class TacticalSystem : MonoBehaviour
     }
 
     bool IsValid(GridPos p) => p.x >= 0 && p.x < width && p.y >= 0 && p.y < height;
+
+    GridPos GetGridPosFromWorld(Vector3 worldPos)
+    {
+        int x = Mathf.RoundToInt(worldPos.x / tileSize);
+        int y = Mathf.RoundToInt(worldPos.z / tileSize); // Use Z for grid Y coordinate.
+        return new GridPos(x, y);
+    }
 
     Vector3 GetWorldPos(GridPos pos) => new Vector3(pos.x * tileSize, 0, pos.y * tileSize);
 

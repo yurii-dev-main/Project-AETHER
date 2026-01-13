@@ -3,13 +3,13 @@ using System.Collections.Generic;
 
 public class MapGenerator : MonoBehaviour
 {
-    // Настройки генерации
+    // ГЌГ Г±ГІГ°Г®Г©ГЄГЁ ГЈГҐГ­ГҐГ°Г Г¶ГЁГЁ
     [Header("Dungeon Settings")]
     public int minRoomSize = 3;
     public int maxRoomSize = 7;
     public int maxRooms = 10;
 
-    // Структура для возврата данных
+    // Г‘ГІГ°ГіГЄГІГіГ°Г  Г¤Г«Гї ГўГ®Г§ГўГ°Г ГІГ  Г¤Г Г­Г­Г»Гµ
     public class DungeonData
     {
         public HashSet<GridPos> Floors = new HashSet<GridPos>();
@@ -23,7 +23,7 @@ public class MapGenerator : MonoBehaviour
         DungeonData data = new DungeonData();
         List<RectInt> rooms = new List<RectInt>();
 
-        // 1. Пытаемся разместить комнаты
+        // 1. ГЏГ»ГІГ ГҐГ¬Г±Гї Г°Г Г§Г¬ГҐГ±ГІГЁГІГј ГЄГ®Г¬Г­Г ГІГ»
         for (int i = 0; i < maxRooms; i++)
         {
             int w = Random.Range(minRoomSize, maxRoomSize);
@@ -33,11 +33,12 @@ public class MapGenerator : MonoBehaviour
 
             RectInt newRoom = new RectInt(x, y, w, h);
 
-            // Проверка на наложение
+            // ГЏГ°Г®ГўГҐГ°ГЄГ  Г­Г  Г­Г Г«Г®Г¦ГҐГ­ГЁГҐ
             bool overlaps = false;
             foreach (var r in rooms)
             {
-                // Делаем отступ в 1 клетку, чтобы комнаты не слипались
+                    Vector2Int roomCenter = Vector2Int.RoundToInt(newRoom.center);
+                    data.EnemySpawnPoints.Add(new GridPos(roomCenter.x, roomCenter.y));
                 RectInt expanded = new RectInt(r.x - 1, r.y - 1, r.width + 2, r.height + 2);
                 if (expanded.Overlaps(newRoom))
                 {
@@ -49,7 +50,7 @@ public class MapGenerator : MonoBehaviour
             if (!overlaps)
             {
                 rooms.Add(newRoom);
-                // Добавляем пол
+                // Г„Г®ГЎГ ГўГ«ГїГҐГ¬ ГЇГ®Г«
                 for (int rx = newRoom.x; rx < newRoom.xMax; rx++)
                 {
                     for (int ry = newRoom.y; ry < newRoom.yMax; ry++)
@@ -58,7 +59,7 @@ public class MapGenerator : MonoBehaviour
                     }
                 }
 
-                // Центр комнаты - потенциальный спавн врага (кроме первой)
+                // Г–ГҐГ­ГІГ° ГЄГ®Г¬Г­Г ГІГ» - ГЇГ®ГІГҐГ­Г¶ГЁГ Г«ГјГ­Г»Г© Г±ГЇГ ГўГ­ ГўГ°Г ГЈГ  (ГЄГ°Г®Г¬ГҐ ГЇГҐГ°ГўГ®Г©)
                 if (rooms.Count > 1)
                 {
                     data.EnemySpawnPoints.Add(new GridPos(newRoom.center.x, newRoom.center.y));
@@ -66,16 +67,16 @@ public class MapGenerator : MonoBehaviour
             }
         }
 
-        if (rooms.Count == 0) return null; // Ошибка генерации
+        if (rooms.Count == 0) return null; // ГЋГёГЁГЎГЄГ  ГЈГҐГ­ГҐГ°Г Г¶ГЁГЁ
 
-        // 2. Соединяем комнаты коридорами
-        // Идем от центра предыдущей к центру следующей
+        // 2. Г‘Г®ГҐГ¤ГЁГ­ГїГҐГ¬ ГЄГ®Г¬Г­Г ГІГ» ГЄГ®Г°ГЁГ¤Г®Г°Г Г¬ГЁ
+        // Г€Г¤ГҐГ¬ Г®ГІ Г¶ГҐГ­ГІГ°Г  ГЇГ°ГҐГ¤Г»Г¤ГіГ№ГҐГ© ГЄ Г¶ГҐГ­ГІГ°Гі Г±Г«ГҐГ¤ГіГѕГ№ГҐГ©
         for (int i = 1; i < rooms.Count; i++)
         {
             Vector2Int prev = Vector2Int.RoundToInt(rooms[i - 1].center);
             Vector2Int curr = Vector2Int.RoundToInt(rooms[i].center);
 
-            // Случайно решаем: сначала по горизонтали или по вертикали (L-shape)
+            // Г‘Г«ГіГ·Г Г©Г­Г® Г°ГҐГёГ ГҐГ¬: Г±Г­Г Г·Г Г«Г  ГЇГ® ГЈГ®Г°ГЁГ§Г®Г­ГІГ Г«ГЁ ГЁГ«ГЁ ГЇГ® ГўГҐГ°ГІГЁГЄГ Г«ГЁ (L-shape)
             if (Random.value < 0.5f)
             {
                 CreateHCorridor(data, prev.x, curr.x, prev.y);
@@ -88,8 +89,8 @@ public class MapGenerator : MonoBehaviour
             }
         }
 
-        // 3. Расставляем стены
-        // Проходим по всей карте. Если клетка НЕ пол, но имеет соседа-пол -> это стена.
+        // 3. ГђГ Г±Г±ГІГ ГўГ«ГїГҐГ¬ Г±ГІГҐГ­Г»
+        // ГЏГ°Г®ГµГ®Г¤ГЁГ¬ ГЇГ® ГўГ±ГҐГ© ГЄГ Г°ГІГҐ. Г…Г±Г«ГЁ ГЄГ«ГҐГІГЄГ  ГЌГ… ГЇГ®Г«, Г­Г® ГЁГ¬ГҐГҐГІ Г±Г®Г±ГҐГ¤Г -ГЇГ®Г« -> ГЅГІГ® Г±ГІГҐГ­Г .
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
@@ -97,7 +98,7 @@ public class MapGenerator : MonoBehaviour
                 GridPos p = new GridPos(x, y);
                 if (!data.Floors.Contains(p))
                 {
-                    // Проверяем соседей
+                    // ГЏГ°Г®ГўГҐГ°ГїГҐГ¬ Г±Г®Г±ГҐГ¤ГҐГ©
                     if (HasFloorNeighbor(p, data.Floors))
                     {
                         data.Walls.Add(p);
@@ -106,7 +107,7 @@ public class MapGenerator : MonoBehaviour
             }
         }
 
-        // Старт в центре первой комнаты
+        // Г‘ГІГ Г°ГІ Гў Г¶ГҐГ­ГІГ°ГҐ ГЇГҐГ°ГўГ®Г© ГЄГ®Г¬Г­Г ГІГ»
         Vector2Int start = Vector2Int.RoundToInt(rooms[0].center);
         data.StartPos = new GridPos(start.x, start.y);
 
@@ -131,7 +132,7 @@ public class MapGenerator : MonoBehaviour
 
     bool HasFloorNeighbor(GridPos p, HashSet<GridPos> floors)
     {
-        // Проверяем 4 направления + диагонали (чтобы углы были красивыми)
+        // ГЏГ°Г®ГўГҐГ°ГїГҐГ¬ 4 Г­Г ГЇГ°Г ГўГ«ГҐГ­ГЁГї + Г¤ГЁГ ГЈГ®Г­Г Г«ГЁ (Г·ГІГ®ГЎГ» ГіГЈГ«Г» ГЎГ»Г«ГЁ ГЄГ°Г Г±ГЁГўГ»Г¬ГЁ)
         for (int x = -1; x <= 1; x++)
         {
             for (int y = -1; y <= 1; y++)
