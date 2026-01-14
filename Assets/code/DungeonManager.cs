@@ -62,14 +62,16 @@ public class DungeonManager : MonoBehaviour
 
     void InitializeNewGame()
     {
+        SavedSpellbook.Clear();
         UnlockedMotionIDs.Clear();
         UnlockedShapeIDs.Clear();
         UnlockedElementIDs.Clear();
-        SavedSpellbook.Clear();
 
-        UnlockMotion("Projectile");
-        UnlockShape("Point");
-        UnlockElement("Fire");
+        // --- ÑÒÀÐÒÎÂÛÉ ÍÀÁÎÐ (MANDATORY) ---
+        // Òîëüêî áàçà. Íèêàêîãî ëàçåðà, íèêàêîãî ëüäà.
+        UnlockModule("Projectile");
+        UnlockModule("Point");
+        UnlockModule("Fire");
 
         SavedSpellbook.Add(new SpellBlueprint("Fireball", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, false, 10, 5, Color.red));
     }
@@ -105,14 +107,17 @@ public class DungeonManager : MonoBehaviour
     {
         switch (moduleId)
         {
+            case "Projectile":
             case "Grenade (Arc)":
             case "Raycast (Inst)":
                 UnlockMotion(moduleId);
                 break;
+            case "Point":
             case "Cross":
             case "Laser Beam":
                 UnlockShape(moduleId);
                 break;
+            case "Fire":
             case "Ice":
             case "Air":
                 UnlockElement(moduleId);

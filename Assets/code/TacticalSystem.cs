@@ -196,6 +196,12 @@ public class TacticalSystem : MonoBehaviour
     {
         InitLibrary();
 
+        if (_libraryMotion.Count == 0 || _libraryShape.Count == 0 || _libraryElement.Count == 0)
+        {
+            Debug.LogError("Spell library is empty. DungeonManager permissions may be missing.");
+            return;
+        }
+
         // Настраиваем дефолтные модули для верстака (чтобы там не было пусто)
         WorkMotion = _libraryMotion[0];
         WorkShape = _libraryShape[0];
@@ -229,20 +235,17 @@ public class TacticalSystem : MonoBehaviour
 
         bool IsMotionUnlocked(string name)
         {
-            if (DungeonManager.Instance == null) return true;
-            return DungeonManager.Instance.IsMotionUnlocked(name);
+            return DungeonManager.Instance != null && DungeonManager.Instance.IsMotionUnlocked(name);
         }
 
         bool IsShapeUnlocked(string name)
         {
-            if (DungeonManager.Instance == null) return true;
-            return DungeonManager.Instance.IsShapeUnlocked(name);
+            return DungeonManager.Instance != null && DungeonManager.Instance.IsShapeUnlocked(name);
         }
 
         bool IsElementUnlocked(string name)
         {
-            if (DungeonManager.Instance == null) return true;
-            return DungeonManager.Instance.IsElementUnlocked(name);
+            return DungeonManager.Instance != null && DungeonManager.Instance.IsElementUnlocked(name);
         }
 
         if (IsMotionUnlocked("Projectile")) _libraryMotion.Add(SpellModule.CreateMotion("Projectile", MotionType.LinearProjectile, 5, 2));
