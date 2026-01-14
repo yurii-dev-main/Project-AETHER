@@ -1334,9 +1334,9 @@ MonoBehaviour:
   switchModeKey: 32
   freeFlyKey: 102
   transitionSpeed: 5
-  panSpeed: 20
+  panSpeed: 100
   zoomSpeed: 10
-  rotateSpeed: 100
+  rotateSpeed: 10
   heightLimits: {x: 5, y: 20}
   angleLimits: {x: 30, y: 85}
   shoulderOffset: {x: 0, y: 2.5, z: -3.5}
@@ -3098,6 +3098,7 @@ GameObject:
   - component: {fileID: 1292443603}
   - component: {fileID: 1292443606}
   - component: {fileID: 1292443605}
+  - component: {fileID: 1292443607}
   m_Layer: 0
   m_Name: GameSystem
   m_TagString: Untagged
@@ -3213,6 +3214,26 @@ MonoBehaviour:
   minRoomSize: 9
   maxRoomSize: 5
   maxRooms: 10
+--- !u!114 &1292443607
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1292443602}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2ec065751e27f8d418e2718f106d7c57, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DungeonManager
+  CurrentLevel: 1
+  SavedHP: 100
+  SavedMana: 50
+  SavedHeat: 0
+  SavedSpellbook: []
+  UnlockedMotionIDs: []
+  UnlockedShapeIDs: []
+  UnlockedElementIDs: []
 --- !u!1 &1318693212
 GameObject:
   m_ObjectHideFlags: 0

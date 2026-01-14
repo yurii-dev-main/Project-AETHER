@@ -222,9 +222,9 @@ public class TacticalSystem : MonoBehaviour
         bool IsUnlocked(string name)
         {
             if (DungeonManager.Instance == null) return false;
-            return DungeonManager.Instance.IsMotionUnlocked(name)
-                   || DungeonManager.Instance.IsShapeUnlocked(name)
-                   || DungeonManager.Instance.IsElementUnlocked(name);
+            return DungeonManager.Instance.IsModuleUnlocked(name)
+                   || DungeonManager.Instance.IsModuleUnlocked(name)
+                   || DungeonManager.Instance.IsModuleUnlocked(name);
         }
 
         if (IsUnlocked("Projectile")) _libraryMotion.Add(SpellModule.CreateMotion("Projectile", MotionType.LinearProjectile, 5, 2));
@@ -596,13 +596,13 @@ public class TacticalSystem : MonoBehaviour
         {
             case "Grenade (Arc)":
             case "Raycast (Inst)":
-                return DungeonManager.Instance.IsMotionUnlocked(moduleId);
+                return DungeonManager.Instance.IsModuleUnlocked(moduleId);
             case "Cross":
             case "Laser Beam":
-                return DungeonManager.Instance.IsShapeUnlocked(moduleId);
+                return DungeonManager.Instance.IsModuleUnlocked(moduleId);
             case "Ice":
             case "Air":
-                return DungeonManager.Instance.IsElementUnlocked(moduleId);
+                return DungeonManager.Instance.IsModuleUnlocked(moduleId);
             default:
                 return true;
         }
