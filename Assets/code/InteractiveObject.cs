@@ -1,14 +1,17 @@
 using UnityEngine;
 
-public enum ObjType { Crate, Barrel, Door } // Добавили Door
+public enum ObjType { Crate, Barrel, Door, Chest } // Р”РѕР±Р°РІРёР»Рё Door
 
 public class InteractiveObject : MonoBehaviour
 {
     public ObjType Type;
     public GridPos Pos;
 
+    // Р§С‚Рѕ Р»РµР¶РёС‚ РІРЅСѓС‚СЂРё (С‚РѕР»СЊРєРѕ РґР»СЏ СЃСѓРЅРґСѓРєРѕРІ)
+    public string LootModuleID;
+
     public bool IsFrozen = false;
-    public bool IsOpen = false; // Для двери
+    public bool IsOpen = false; // Р”Р»СЏ РґРІРµСЂРё
 
     public void Shake()
     {
@@ -17,7 +20,7 @@ public class InteractiveObject : MonoBehaviour
 
     public void Freeze()
     {
-        if (IsFrozen || Type == ObjType.Door) return; // Двери пока не морозим
+        if (IsFrozen || Type == ObjType.Door || Type == ObjType.Chest) return; // Р”РІРµСЂРё РїРѕРєР° РЅРµ РјРѕСЂРѕР·РёРј
         IsFrozen = true;
         GetComponent<Renderer>().material.color = Color.cyan;
     }
@@ -29,18 +32,18 @@ public class InteractiveObject : MonoBehaviour
         UpdateColor();
     }
 
-    // НОВОЕ: Открытие двери
+    // РќРћР’РћР•: РћС‚РєСЂС‹С‚РёРµ РґРІРµСЂРё
     public void OpenDoor()
     {
         if (Type != ObjType.Door || IsOpen) return;
 
         IsOpen = true;
-        // Визуально "открываем" (уменьшаем или поворачиваем)
+        // Р’РёР·СѓР°Р»СЊРЅРѕ "РѕС‚РєСЂС‹РІР°РµРј" (СѓРјРµРЅСЊС€Р°РµРј РёР»Рё РїРѕРІРѕСЂР°С‡РёРІР°РµРј)
         transform.localScale = new Vector3(0.2f, 1f, 0.2f);
-        // Меняем цвет на зеленый (проход)
+        // РњРµРЅСЏРµРј С†РІРµС‚ РЅР° Р·РµР»РµРЅС‹Р№ (РїСЂРѕС…РѕРґ)
         GetComponent<Renderer>().material.color = Color.green;
 
-        // Важно: Логику удаления из стен (_walls.Remove) должен делать TacticalSystem
+        // Р’Р°Р¶РЅРѕ: Р›РѕРіРёРєСѓ СѓРґР°Р»РµРЅРёСЏ РёР· СЃС‚РµРЅ (_walls.Remove) РґРѕР»Р¶РµРЅ РґРµР»Р°С‚СЊ TacticalSystem
     }
 
     public void UpdateColor()
@@ -49,6 +52,7 @@ public class InteractiveObject : MonoBehaviour
         if (Type == ObjType.Barrel) r.material.color = Color.red;
         else if (Type == ObjType.Crate) r.material.color = new Color(0.6f, 0.4f, 0.2f); // Brown
         else if (Type == ObjType.Door) r.material.color = new Color(0.4f, 0.2f, 0.1f); // Dark Wood
+        else if (Type == ObjType.Chest) r.material.color = Color.yellow;
     }
 
     System.Collections.IEnumerator ShakeRoutine()
