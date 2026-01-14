@@ -126,7 +126,7 @@ public class TacticalSystem : MonoBehaviour
     public GameObject vfxForcePillar;
     public GameObject vfxExplosion;
 
-    private readonly string[] _lootPool =
+    private string[] _lootPool =
     {
         "Grenade (Arc)", "Raycast (Inst)",
         "Cross", "Laser Beam",
@@ -145,6 +145,8 @@ public class TacticalSystem : MonoBehaviour
     private MapGenerator.DungeonData _dungeonData;
     private List<GridPos> _enemySpawnPoints = new List<GridPos>();
     private List<GameObject> _enemies = new List<GameObject>();
+    private List<UnitStats> _enemyStatsList = new List<UnitStats>();
+    private List<EnemyAI> _enemyAIList = new List<EnemyAI>();
 
     private GridPos _heroPos = new GridPos(1, 1);
     private GridPos _enemyPos;
@@ -163,6 +165,7 @@ public class TacticalSystem : MonoBehaviour
     public List<SpellBlueprint> Spellbook = new List<SpellBlueprint>();
     private int _selectedSpellIndex = -1;
     private bool _isGrimoireOpen = false;
+    private int _currentLevel = 1;
 
     private List<SpellModule> _libraryMotion = new List<SpellModule>();
     private List<SpellModule> _libraryShape = new List<SpellModule>();
@@ -179,49 +182,32 @@ public class TacticalSystem : MonoBehaviour
     public List<SpellModule> GetMotionLibrary() => _libraryMotion;
     public List<SpellModule> GetShapeLibrary() => _libraryShape;
     public List<SpellModule> GetElementLibrary() => _libraryElement;
+
+    private bool _victoryShown = false;
     void Awake()
     {
-        if (DungeonManager.Instance != null)
-        {
-            Spellbook = DungeonManager.Instance.SavedSpellbook;
-        }
-        else
-        {
-            Debug.LogWarning("No DungeonManager found! Using temporary spellbook.");
-            Spellbook.Add(new SpellBlueprint("Temp Fire", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, false, 10, 5, Color.red));
-        }
+        if (DungeonManager.Instance != null) Spellbook = DungeonManager.Instance.SavedSpellbook;
     }
 
     void Start()
     {
-        InitLibrary();
-
-        if (_libraryMotion.Count == 0 || _libraryShape.Count == 0 || _libraryElement.Count == 0)
+        if (DungeonManager.Instance != null)
         {
-            Debug.LogError("Spell library is empty. DungeonManager permissions may be missing.");
-            return;
+            _currentLevel = DungeonManager.Instance.CurrentLevel;
+            Spellbook = DungeonManager.Instance.SavedSpellbook;
+        }
+        else
+        {
+            Spellbook.Add(new SpellBlueprint("Temp Fire", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, false, 10, 5, Color.red));
         }
 
-        // Настраиваем дефолтные модули для верстака (чтобы там не было пусто)
+        InitLibrary();
+
         WorkMotion = _libraryMotion[0];
         WorkShape = _libraryShape[0];
         WorkElement = _libraryElement[0];
         WorkPowerLevel = 1;
         WorkIsOptimized = false;
-
-        // ЛОГИКА ЗАГРУЗКИ
-        if (DungeonManager.Instance != null && DungeonManager.Instance.SavedSpellbook.Count > 0)
-        {
-            // Если в менеджере уже есть спеллы — берем их
-            Spellbook = DungeonManager.Instance.SavedSpellbook;
-            Debug.Log("Spellbook loaded from DungeonManager.");
-        }
-        else
-        {
-            // Если это первый запуск (или менеджера нет) — создаем стартовый спелл
-            Debug.LogWarning("New Game or No Manager. Creating default spell.");
-            CompileSpellToSlot(0);
-        }
 
         GenerateGrid();
         SpawnUnits();
@@ -233,32 +219,25 @@ public class TacticalSystem : MonoBehaviour
         _libraryShape.Clear();
         _libraryElement.Clear();
 
-        bool IsMotionUnlocked(string name)
+        bool IsUnlocked(string name)
         {
-            return DungeonManager.Instance != null && DungeonManager.Instance.IsMotionUnlocked(name);
+            if (DungeonManager.Instance == null) return false;
+            return DungeonManager.Instance.IsMotionUnlocked(name)
+                   || DungeonManager.Instance.IsShapeUnlocked(name)
+                   || DungeonManager.Instance.IsElementUnlocked(name);
         }
 
-        bool IsShapeUnlocked(string name)
-        {
-            return DungeonManager.Instance != null && DungeonManager.Instance.IsShapeUnlocked(name);
-        }
+        if (IsUnlocked("Projectile")) _libraryMotion.Add(SpellModule.CreateMotion("Projectile", MotionType.LinearProjectile, 5, 2));
+        if (IsUnlocked("Grenade (Arc)")) _libraryMotion.Add(SpellModule.CreateMotion("Grenade (Arc)", MotionType.ArcingProjectile, 10, 5));
+        if (IsUnlocked("Raycast (Inst)")) _libraryMotion.Add(SpellModule.CreateMotion("Raycast (Inst)", MotionType.InstantRay, 10, 5));
 
-        bool IsElementUnlocked(string name)
-        {
-            return DungeonManager.Instance != null && DungeonManager.Instance.IsElementUnlocked(name);
-        }
+        if (IsUnlocked("Point")) _libraryShape.Add(SpellModule.CreateShape("Point", ShapeType.SingleTile, 0, 0));
+        if (IsUnlocked("Cross")) _libraryShape.Add(SpellModule.CreateShape("Cross", ShapeType.Cross, 10, 5));
+        if (IsUnlocked("Laser Beam")) _libraryShape.Add(SpellModule.CreateShape("Laser Beam", ShapeType.LineBeam, 15, 10));
 
-        if (IsMotionUnlocked("Projectile")) _libraryMotion.Add(SpellModule.CreateMotion("Projectile", MotionType.LinearProjectile, 5, 2));
-        if (IsMotionUnlocked("Grenade (Arc)")) _libraryMotion.Add(SpellModule.CreateMotion("Grenade (Arc)", MotionType.ArcingProjectile, 10, 5));
-        if (IsMotionUnlocked("Raycast (Inst)")) _libraryMotion.Add(SpellModule.CreateMotion("Raycast (Inst)", MotionType.InstantRay, 10, 5));
-
-        if (IsShapeUnlocked("Point")) _libraryShape.Add(SpellModule.CreateShape("Point", ShapeType.SingleTile, 0, 0));
-        if (IsShapeUnlocked("Cross")) _libraryShape.Add(SpellModule.CreateShape("Cross", ShapeType.Cross, 10, 5));
-        if (IsShapeUnlocked("Laser Beam")) _libraryShape.Add(SpellModule.CreateShape("Laser Beam", ShapeType.LineBeam, 15, 10));
-
-        if (IsElementUnlocked("Fire")) _libraryElement.Add(SpellModule.CreateElement("Fire", Element.Fire, Color.red));
-        if (IsElementUnlocked("Ice")) _libraryElement.Add(SpellModule.CreateElement("Ice", Element.Ice, Color.cyan));
-        if (IsElementUnlocked("Air")) _libraryElement.Add(SpellModule.CreateElement("Air", Element.Air, Color.white));
+        if (IsUnlocked("Fire")) _libraryElement.Add(SpellModule.CreateElement("Fire", Element.Fire, Color.red));
+        if (IsUnlocked("Ice")) _libraryElement.Add(SpellModule.CreateElement("Ice", Element.Ice, Color.cyan));
+        if (IsUnlocked("Air")) _libraryElement.Add(SpellModule.CreateElement("Air", Element.Air, Color.white));
     }
 
     void Update()
@@ -267,14 +246,33 @@ public class TacticalSystem : MonoBehaviour
 
         if (_currentState == BattleState.Won || _currentState == BattleState.Lost)
         {
-            if (Input.GetKeyDown(KeyCode.R)) UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+            if (!_victoryShown && UIManager.Instance != null)
+            {
+                UIManager.Instance.ShowVictory(_currentState == BattleState.Won);
+                _victoryShown = true;
+            }
+
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                if (DungeonManager.Instance != null)
+                {
+                    if (_currentState == BattleState.Won)
+                        DungeonManager.Instance.CompleteLevel(_heroStats.currentHP, _heroStats.currentMana, _heroStats.currentHeat);
+                    else
+                        DungeonManager.Instance.RestartGame();
+                }
+                else
+                {
+                    UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+                }
+            }
             return;
         }
 
         if (Input.GetKeyDown(KeyCode.Tab))
         {
             _isGrimoireOpen = !_isGrimoireOpen;
-            UpdateUI();
+            if (UIManager.Instance != null) UIManager.Instance.ToggleGrimoire(_isGrimoireOpen);
         }
         if (_isGrimoireOpen) return;
         if (_currentState != BattleState.PlayerPlanning) return;
@@ -428,11 +426,14 @@ public class TacticalSystem : MonoBehaviour
 
         interact.Type = type;
         interact.Pos = pos;
-        interact.UpdateColor();
-
         if (type == ObjType.Chest)
         {
-            interact.LootModuleID = GetRandomLootModuleId();
+            interact.UpdateColor();
+            interact.LootModuleID = _lootPool[Random.Range(0, _lootPool.Length)];
+        }
+        else
+        {
+            interact.UpdateColor();
         }
 
         _interactiveObjects.Add(pos, interact);
@@ -458,26 +459,37 @@ public class TacticalSystem : MonoBehaviour
     void SpawnUnits()
     {
         if (_heroInstance != null) Destroy(_heroInstance);
-        if (_enemyInstance != null) Destroy(_enemyInstance);
+        foreach (var enemy in _enemies) if (enemy != null) Destroy(enemy);
         _enemies.Clear();
+        _enemyStatsList.Clear();
+        _enemyAIList.Clear();
 
         _heroInstance = Instantiate(heroPrefab, GetWorldPos(_heroPos) + Vector3.up * 0.5f, Quaternion.identity);
         _heroStats = _heroInstance.GetComponent<UnitStats>();
+        if (DungeonManager.Instance != null)
+        {
+            _heroStats.currentHP = DungeonManager.Instance.SavedHP;
+            _heroStats.currentMana = DungeonManager.Instance.SavedMana;
+            _heroStats.currentHeat = DungeonManager.Instance.SavedHeat;
+        }
 
-        if (_enemySpawnPoints == null || _enemySpawnPoints.Count == 0)
+        int enemyCount = 1 + (_currentLevel / 2);
+        for (int i = 0; i < enemyCount; i++)
         {
-            _enemyPos = FindValidSpawnPos(width - 5, width - 1);
+            GridPos spawnPos = FindValidSpawnPos();
+            GameObject newEnemy = Instantiate(enemyPrefab, GetWorldPos(spawnPos) + Vector3.up * 0.5f, Quaternion.identity);
+            UnitStats stats = newEnemy.GetComponent<UnitStats>();
+            stats.maxHP += (_currentLevel - 1) * 20;
+            stats.currentHP = stats.maxHP;
+            EnemyAI ai = newEnemy.AddComponent<EnemyAI>();
+            ai.Init(this, stats);
+            newEnemy.SetActive(false);
+            _enemies.Add(newEnemy);
+            _enemyStatsList.Add(stats);
+            _enemyAIList.Add(ai);
         }
-        else
-        {
-            _enemyPos = _enemySpawnPoints[0];
-        }
-        _enemyInstance = Instantiate(enemyPrefab, GetWorldPos(_enemyPos) + Vector3.up * 0.5f, Quaternion.identity);
-        _enemyStats = _enemyInstance.GetComponent<UnitStats>();
-        _enemyAI = _enemyInstance.AddComponent<EnemyAI>();
-        _enemyAI.Init(this, _enemyStats);
-        _enemyInstance.SetActive(false);
-        _enemies.Add(_enemyInstance);
+
+        _enemyInstance = _enemies.Count > 0 ? _enemies[0] : null;
     }
 
     // --- ÎÁÍÎÂËÅÍÍÀß ÎÁÐÀÁÎÒÊÀ ÎÁÚÅÊÒÎÂ ---
@@ -496,6 +508,8 @@ public class TacticalSystem : MonoBehaviour
             }
 
             InitLibrary();
+            GrimoireUI grimoire = FindFirstObjectByType<GrimoireUI>();
+            if (grimoire != null) grimoire.RefreshButtons();
 
             if (UIManager.Instance != null)
             {
@@ -648,13 +662,19 @@ public class TacticalSystem : MonoBehaviour
             }
 
             // Ïîïàäàíèå âî âðàãà
-            if (nextPos == _enemyPos && _enemyInstance.activeSelf)
+            foreach (var enemy in _enemies)
             {
-                hitSomething = true;
-                Debug.Log("CRITICAL HIT! Object crushed Enemy!");
-                _enemyStats.TakeDamage(30);
-                break;
+                if (enemy == null || !enemy.activeSelf) continue;
+                if (GetGridPosFromWorld(enemy.transform.position) == nextPos)
+                {
+                    hitSomething = true;
+                    Debug.Log("CRITICAL HIT! Object crushed Enemy!");
+                    UnitStats stats = enemy.GetComponent<UnitStats>();
+                    if (stats != null) stats.TakeDamage(30);
+                    break;
+                }
             }
+            if (hitSomething) break;
 
             // Ïîïàäàíèå â ãåðîÿ
             if (nextPos == _heroPos)
@@ -746,9 +766,14 @@ public class TacticalSystem : MonoBehaviour
             StartCoroutine(FlashTile(p, new Color(1f, 0.5f, 0f)));
 
             // Óðîí âðàãàì
-            if (p == _enemyPos && _enemyInstance.activeSelf)
+            foreach (var enemy in _enemies)
             {
-                _enemyStats.TakeDamage(40);
+                if (enemy == null || !enemy.activeSelf) continue;
+                if (GetGridPosFromWorld(enemy.transform.position) == p)
+                {
+                    UnitStats stats = enemy.GetComponent<UnitStats>();
+                    if (stats != null) stats.TakeDamage(40);
+                }
             }
             if (p == _heroPos)
             {
@@ -883,7 +908,7 @@ public class TacticalSystem : MonoBehaviour
             }
 
             // 3. Óðîí âðàãàì
-            foreach (var enemy in new[] { _enemyInstance })
+            foreach (var enemy in _enemies)
             {
                 if (enemy == null || !enemy.activeSelf) continue;
 
@@ -930,10 +955,6 @@ public class TacticalSystem : MonoBehaviour
                         if (IsValid(pushDest) && !isBlockedByWall && !isBlockedByUnit)
                         {
                             yield return MoveUnit(enemy, pushDest);
-                            _enemyPos = pushDest;
-                            // Важно: Позиция _enemyPos в классе TacticalSystem больше не используется для логики,
-                            // так как мы берем позицию реального объекта через GetGridPosFromWorld.
-                            // Это решает проблему рассинхрона!
                         }
                         else
                         {
@@ -1101,12 +1122,8 @@ public class TacticalSystem : MonoBehaviour
                     yield return MoveUnit(_heroInstance, step);
                     _heroPos = step;
                     ResetTileColor(step);
-                    if (fogOfWar != null)
-                    {
-                        fogOfWar.UpdateFog(_heroPos);
-                    }
-                    if (fogOfWar == null && Vector3.Distance(GetWorldPos(_heroPos), GetWorldPos(_enemyPos)) < tileSize * 3)
-                        _enemyInstance.SetActive(true);
+                    CheckEnemyProximity();
+                    if (fogOfWar != null) fogOfWar.UpdateFog(_heroPos);
                 }
             }
             else if (cmd.Type == "SPELL")
@@ -1128,9 +1145,15 @@ public class TacticalSystem : MonoBehaviour
         }
         ClearQueue();
         bool enemiesRemain = false;
-        if (_enemyInstance != null && _enemyStats != null && _enemyStats.currentHP > 0)
+        foreach (var enemy in _enemies)
         {
-            enemiesRemain = true;
+            if (enemy == null) continue;
+            UnitStats stats = enemy.GetComponent<UnitStats>();
+            if (stats != null && stats.currentHP > 0)
+            {
+                enemiesRemain = true;
+                break;
+            }
         }
 
         if (!enemiesRemain)
@@ -1148,23 +1171,24 @@ public class TacticalSystem : MonoBehaviour
     {
         _currentState = BattleState.EnemyExecuting;
         yield return new WaitForSeconds(0.5f);
-        if (_enemyInstance.activeSelf && _enemyStats.currentHP > 0)
+        for (int i = 0; i < _enemies.Count; i++)
         {
-            List<ActionCommand> aiMoves = _enemyAI.PlanTurn(_enemyPos, _heroPos, _walls);
+            if (!_enemies[i].activeSelf || _enemyStatsList[i].currentHP <= 0) continue;
+            GridPos myPos = GetGridPosFromWorld(_enemies[i].transform.position);
+            List<ActionCommand> aiMoves = _enemyAIList[i].PlanTurn(myPos, _heroPos, _walls);
             foreach (ActionCommand cmd in aiMoves)
             {
                 if (cmd.Type == "MOVE")
                 {
                     foreach (GridPos step in cmd.Path)
                     {
-                        yield return MoveUnit(_enemyInstance, step);
-                        _enemyPos = step;
+                        yield return MoveUnit(_enemies[i], step);
                     }
                 }
                 else if (cmd.Type == "ATTACK")
                 {
-                    _enemyInstance.transform.LookAt(GetWorldPos(cmd.TargetPos));
-                    _heroStats.TakeDamage(_enemyAI.damage);
+                    _enemies[i].transform.LookAt(GetWorldPos(cmd.TargetPos));
+                    _heroStats.TakeDamage(_enemyAIList[i].damage);
                 }
                 yield return new WaitForSeconds(0.2f);
             }
@@ -1291,6 +1315,16 @@ public class TacticalSystem : MonoBehaviour
 
     bool IsValid(GridPos p) => p.x >= 0 && p.x < width && p.y >= 0 && p.y < height;
 
+    void CheckEnemyProximity()
+    {
+        foreach (var enemy in _enemies)
+        {
+            if (enemy == null) continue;
+            if (Vector3.Distance(GetWorldPos(_heroPos), enemy.transform.position) < tileSize * 3)
+                enemy.SetActive(true);
+        }
+    }
+
     GridPos GetGridPosFromWorld(Vector3 worldPos)
     {
         int x = Mathf.RoundToInt(worldPos.x / tileSize);
@@ -1299,6 +1333,18 @@ public class TacticalSystem : MonoBehaviour
     }
 
     Vector3 GetWorldPos(GridPos pos) => new Vector3(pos.x * tileSize, 0, pos.y * tileSize);
+
+    GridPos FindValidSpawnPos()
+    {
+        int attempts = 100;
+        while (attempts > 0)
+        {
+            GridPos p = new GridPos(Random.Range(0, width), Random.Range(0, height));
+            if (!_walls.Contains(p)) return p;
+            attempts--;
+        }
+        return new GridPos(width - 1, height - 1);
+    }
 
     GridPos FindValidSpawnPos(int minX, int maxX)
     {
@@ -1408,13 +1454,5 @@ public class TacticalSystem : MonoBehaviour
             previewHeat
         );
 
-        if (_currentState == BattleState.Won)
-        {
-            UIManager.Instance.ShowVictory(true);
-        }
-        else if (_currentState == BattleState.Lost)
-        {
-            UIManager.Instance.ShowVictory(false);
-        }
     }
 }
