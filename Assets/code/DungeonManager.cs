@@ -7,139 +7,81 @@ public class DungeonManager : MonoBehaviour
 
     [Header("Session Data")]
     public int CurrentLevel = 1;
-
     public int SavedHP = 100;
     public int SavedMana = 50;
     public int SavedHeat = 0;
 
-    // GRIMOIRE (collected slots)
+    // ГРИМУАР (Собранные слоты)
     public List<SpellBlueprint> SavedSpellbook = new List<SpellBlueprint>();
 
-    // LIBRARY (unlocked parts)
-    public List<string> UnlockedMotionIDs = new List<string>();
-    public List<string> UnlockedShapeIDs = new List<string>();
-    public List<string> UnlockedElementIDs = new List<string>();
+    // БИБЛИОТЕКА (Разблокированные детали)
+    // HashSet не виден в Инспекторе Unity и стирается при перезагрузке домена,
+    // поэтому мы будем инициализировать его при старте, если он пуст.
+    public HashSet<string> UnlockedModules = new HashSet<string>();
 
     void Awake()
     {
         if (Instance == null)
         {
             Instance = this;
-            DontDestroyOnLoad(gameObject); // Æèâåò âå÷íî
-            if (SavedSpellbook.Count == 0)
+            DontDestroyOnLoad(gameObject);
+
+            // ИСПРАВЛЕНИЕ: Проверяем UnlockedModules. 
+            // Если он пуст (даже если есть спеллы) — нужно выдать базу.
+            if (SavedSpellbook.Count == 0 || UnlockedModules.Count == 0)
             {
                 InitializeNewGame();
             }
         }
         else
         {
-            Destroy(gameObject); // Óáèâàåì äóáëèêàòû ïðè ïåðåçàãðóçêå
+            Destroy(gameObject);
         }
+    }
+
+    void InitializeNewGame()
+    {
+        // 1. Очистка
+        SavedSpellbook.Clear();
+        UnlockedModules.Clear();
+
+        // 2. СТАРТОВЫЙ НАБОР (Starter Kit)
+        // Точковые способности и Огонь, как ты просил
+        UnlockModule("Projectile"); // Способ доставки (Motion)
+        UnlockModule("Point");      // Форма урона (Shape)
+        UnlockModule("Fire");       // Стихия (Element)
+
+        // 3. Собираем первый спелл для игрока (чтобы слот 1 не был пустым)
+        SavedSpellbook.Add(new SpellBlueprint("Fireball", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, false, 10, 5, Color.red));
+
+        Debug.Log("NEW GAME INITIALIZED: Starter Kit Unlocked.");
+    }
+
+    public void UnlockModule(string moduleName)
+    {
+        if (!UnlockedModules.Contains(moduleName))
+        {
+            UnlockedModules.Add(moduleName);
+            Debug.Log($"NEW FIRMWARE DETECTED: {moduleName}");
+        }
+    }
+
+    public bool IsModuleUnlocked(string moduleName)
+    {
+        return UnlockedModules.Contains(moduleName);
     }
 
     public void CompleteLevel(int hp, int mana, int heat)
     {
-        SavedHP = hp;
-        SavedMana = mana;
-        SavedHeat = heat;
+        SavedHP = hp; SavedMana = mana; SavedHeat = heat;
         CurrentLevel++;
-
-        Debug.Log($"LEVEL {CurrentLevel} STARTING...");
-
-        // Ïåðåçàãðóæàåì ñöåíó (íî òàê êàê Manager æèâ, äàííûå îñòàíóòñÿ)
         UnityEngine.SceneManagement.SceneManager.LoadScene(0);
     }
 
     public void RestartGame()
     {
-        CurrentLevel = 1;
-        SavedHP = 100;
-        SavedMana = 50;
-        SavedHeat = 0;
+        CurrentLevel = 1; SavedHP = 100; SavedMana = 50; SavedHeat = 0;
         InitializeNewGame();
         UnityEngine.SceneManagement.SceneManager.LoadScene(0);
-    }
-
-    void InitializeNewGame()
-    {
-        SavedSpellbook.Clear();
-        UnlockedMotionIDs.Clear();
-        UnlockedShapeIDs.Clear();
-        UnlockedElementIDs.Clear();
-
-        // --- ÑÒÀÐÒÎÂÛÉ ÍÀÁÎÐ (MANDATORY) ---
-        // Òîëüêî áàçà. Íèêàêîãî ëàçåðà, íèêàêîãî ëüäà.
-        UnlockModule("Projectile");
-        UnlockModule("Point");
-        UnlockModule("Fire");
-
-        SavedSpellbook.Add(new SpellBlueprint("Fireball", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, false, 10, 5, Color.red));
-    }
-
-    public void UnlockMotion(string motionId)
-    {
-        if (!UnlockedMotionIDs.Contains(motionId))
-        {
-            UnlockedMotionIDs.Add(motionId);
-            Debug.Log($"NEW FIRMWARE DETECTED: {motionId}");
-        }
-    }
-
-    public void UnlockShape(string shapeId)
-    {
-        if (!UnlockedShapeIDs.Contains(shapeId))
-        {
-            UnlockedShapeIDs.Add(shapeId);
-            Debug.Log($"NEW FIRMWARE DETECTED: {shapeId}");
-        }
-    }
-
-    public void UnlockElement(string elementId)
-    {
-        if (!UnlockedElementIDs.Contains(elementId))
-        {
-            UnlockedElementIDs.Add(elementId);
-            Debug.Log($"NEW FIRMWARE DETECTED: {elementId}");
-        }
-    }
-
-    public void UnlockModule(string moduleId)
-    {
-        switch (moduleId)
-        {
-            case "Projectile":
-            case "Grenade (Arc)":
-            case "Raycast (Inst)":
-                UnlockMotion(moduleId);
-                break;
-            case "Point":
-            case "Cross":
-            case "Laser Beam":
-                UnlockShape(moduleId);
-                break;
-            case "Fire":
-            case "Ice":
-            case "Air":
-                UnlockElement(moduleId);
-                break;
-            default:
-                Debug.LogWarning($"Unknown module ID: {moduleId}");
-                break;
-        }
-    }
-
-    public bool IsMotionUnlocked(string motionId)
-    {
-        return UnlockedMotionIDs.Contains(motionId);
-    }
-
-    public bool IsShapeUnlocked(string shapeId)
-    {
-        return UnlockedShapeIDs.Contains(shapeId);
-    }
-
-    public bool IsElementUnlocked(string elementId)
-    {
-        return UnlockedElementIDs.Contains(elementId);
     }
 }
