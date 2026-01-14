@@ -126,6 +126,13 @@ public class TacticalSystem : MonoBehaviour
     public GameObject vfxForcePillar;
     public GameObject vfxExplosion;
 
+    private readonly string[] _lootPool =
+    {
+        "Grenade (Arc)", "Raycast (Inst)",
+        "Cross", "Laser Beam",
+        "Ice", "Air"
+    };
+
     public Transform HeroTransform => _heroInstance != null ? _heroInstance.transform : null;
     public Vector3 GetGridCenter() => new Vector3(width * tileSize / 2f - tileSize / 2, 0, height * tileSize / 2f - tileSize / 2);
 
@@ -364,7 +371,7 @@ public class TacticalSystem : MonoBehaviour
             if (!IsRoomTile(pos)) continue;
             if (Random.Range(0, 100) >= objectChance) continue;
 
-            ObjType type = Random.value < 0.5f ? ObjType.Crate : ObjType.Barrel;
+            ObjType type = Random.value < 0.2f ? ObjType.Chest : (Random.value < 0.5f ? ObjType.Crate : ObjType.Barrel);
             SpawnObject(pos, type);
         }
 
@@ -408,7 +415,8 @@ public class TacticalSystem : MonoBehaviour
 
     void SpawnObject(GridPos pos, ObjType type)
     {
-        GameObject prefab = (type == ObjType.Crate) ? cratePrefab : barrelPrefab;
+        GameObject prefab = cratePrefab;
+        if (type == ObjType.Barrel) prefab = barrelPrefab;
         if (prefab == null) return;
 
         GameObject obj = Instantiate(prefab, GetWorldPos(pos) + Vector3.up * 0.5f, Quaternion.identity);
@@ -417,6 +425,12 @@ public class TacticalSystem : MonoBehaviour
 
         interact.Type = type;
         interact.Pos = pos;
+        interact.UpdateColor();
+
+        if (type == ObjType.Chest)
+        {
+            interact.LootModuleID = GetRandomLootModuleId();
+        }
 
         _interactiveObjects.Add(pos, interact);
         _walls.Add(pos);
@@ -468,6 +482,26 @@ public class TacticalSystem : MonoBehaviour
     {
         obj.Shake();
         yield return new WaitForSeconds(0.2f);
+
+        if (obj.Type == ObjType.Chest)
+        {
+            Debug.Log($"LOOT FOUND: {obj.LootModuleID}");
+
+            if (DungeonManager.Instance != null)
+            {
+                DungeonManager.Instance.UnlockModule(obj.LootModuleID);
+            }
+
+            InitLibrary();
+
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.ShowLootMessage(obj.LootModuleID);
+            }
+
+            DestroyObject(obj.Pos);
+            yield break;
+        }
 
         if (obj.Type == ObjType.Door && (element == Element.Air || element == Element.Fire))
         {
@@ -536,6 +570,44 @@ public class TacticalSystem : MonoBehaviour
     bool IsRoomTile(GridPos pos)
     {
         return CountFloorNeighbors(pos) > 4;
+    }
+
+    bool IsModuleUnlocked(string moduleId)
+    {
+        if (DungeonManager.Instance == null) return false;
+        switch (moduleId)
+        {
+            case "Grenade (Arc)":
+            case "Raycast (Inst)":
+                return DungeonManager.Instance.IsMotionUnlocked(moduleId);
+            case "Cross":
+            case "Laser Beam":
+                return DungeonManager.Instance.IsShapeUnlocked(moduleId);
+            case "Ice":
+            case "Air":
+                return DungeonManager.Instance.IsElementUnlocked(moduleId);
+            default:
+                return true;
+        }
+    }
+
+    string GetRandomLootModuleId()
+    {
+        List<string> candidates = new List<string>();
+        foreach (string moduleId in _lootPool)
+        {
+            if (!IsModuleUnlocked(moduleId))
+            {
+                candidates.Add(moduleId);
+            }
+        }
+
+        if (candidates.Count == 0)
+        {
+            candidates.AddRange(_lootPool);
+        }
+
+        return candidates[Random.Range(0, candidates.Count)];
     }
 
     IEnumerator PushObjectRoutine(InteractiveObject obj)

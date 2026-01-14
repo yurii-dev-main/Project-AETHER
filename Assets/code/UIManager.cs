@@ -11,6 +11,7 @@ public class UIManager : MonoBehaviour
     public GameObject grimoirePanel;
     public GameObject victoryPanel;
     public GameObject gameOverPanel;
+    public GameObject lootPanel;
 
     [Header("Text Elements")]
     public TextMeshProUGUI statsText;
@@ -19,6 +20,7 @@ public class UIManager : MonoBehaviour
 
     [Header("Grimoire Elements")]
     public TextMeshProUGUI grimoireDebugText;
+    public TextMeshProUGUI lootText;
 
     void Awake()
     {
@@ -34,6 +36,7 @@ public class UIManager : MonoBehaviour
         if (grimoirePanel) grimoirePanel.SetActive(false);
         if (victoryPanel) victoryPanel.SetActive(false);
         if (gameOverPanel) gameOverPanel.SetActive(false);
+        if (lootPanel) lootPanel.SetActive(false);
     }
 
     public void UpdateStats(int hp, int mana, int heat, int maxHeat, bool isOverheated)
@@ -103,6 +106,23 @@ public class UIManager : MonoBehaviour
     {
         if (victoryPanel) victoryPanel.SetActive(isVictory);
         if (gameOverPanel) gameOverPanel.SetActive(!isVictory);
+    }
+
+    public void ShowLootMessage(string moduleName)
+    {
+        if (lootPanel)
+        {
+            lootPanel.SetActive(true);
+            if (lootText) lootText.text = $"SYSTEM UPDATE:\nMODULE <color=yellow>[{moduleName}]</color> INSTALLED";
+
+            CancelInvoke(nameof(HideLootPanel));
+            Invoke(nameof(HideLootPanel), 3.0f);
+        }
+    }
+
+    void HideLootPanel()
+    {
+        if (lootPanel) lootPanel.SetActive(false);
     }
 
     // Привяжи эту функцию к кнопке на панели победы

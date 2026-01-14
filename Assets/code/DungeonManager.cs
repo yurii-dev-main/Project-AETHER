@@ -101,6 +101,28 @@ public class DungeonManager : MonoBehaviour
         }
     }
 
+    public void UnlockModule(string moduleId)
+    {
+        switch (moduleId)
+        {
+            case "Grenade (Arc)":
+            case "Raycast (Inst)":
+                UnlockMotion(moduleId);
+                break;
+            case "Cross":
+            case "Laser Beam":
+                UnlockShape(moduleId);
+                break;
+            case "Ice":
+            case "Air":
+                UnlockElement(moduleId);
+                break;
+            default:
+                Debug.LogWarning($"Unknown module ID: {moduleId}");
+                break;
+        }
+    }
+
     public bool IsMotionUnlocked(string motionId)
     {
         return UnlockedMotionIDs.Contains(motionId);
