@@ -118,6 +118,7 @@ public class TacticalSystem : MonoBehaviour
     public GameObject cratePrefab;
     public GameObject barrelPrefab;
     public GameObject doorPrefab;
+    public GameObject switchPrefab;
 
     [Header("VFX")]
     public GameObject vfxFireball;
@@ -334,46 +335,75 @@ public class TacticalSystem : MonoBehaviour
             return;
         }
 
-        _dungeonData = mapGenerator.Generate(width, height);
-        if (_dungeonData == null)
+        var data = mapGenerator.Generate(width, height);
+        _dungeonData = data;
+        if (data == null)
         {
             Debug.LogError("MapGenerator failed to create dungeon data.");
             return;
         }
 
-        _enemySpawnPoints = new List<GridPos>(_dungeonData.EnemySpawnPoints);
-        _heroPos = _dungeonData.StartPos;
+        _enemySpawnPoints = new List<GridPos>(data.EnemySpawnPoints);
+        _heroPos = data.StartPos;
 
-        foreach (GridPos pos in _dungeonData.Floors)
+        for (int x = 0; x < width; x++)
         {
-            CreateTileVisual(pos, boardHolder.transform, false);
-        }
-
-        foreach (GridPos pos in _dungeonData.Walls)
-        {
-            CreateTileVisual(pos, boardHolder.transform, true);
-        }
-
-        if (doorPrefab != null && _dungeonData.DoorSpots != null)
-        {
-            foreach (GridPos pos in _dungeonData.DoorSpots)
+            for (int y = 0; y < height; y++)
             {
-                if (_walls.Contains(pos)) continue;
-                SpawnDoor(pos);
+                GridPos p = new GridPos(x, y);
+
+                if (data.Floors.Contains(p) || data.Walls.Contains(p))
+                {
+                    Vector3 worldPos = GetWorldPos(p);
+                    GameObject tile = Instantiate(tilePrefab, worldPos, Quaternion.identity);
+                    tile.name = $"Tile_{x}_{y}";
+                    tile.transform.parent = boardHolder.transform;
+                    _gridVisuals.Add(p, tile);
+                    TileData td = tile.AddComponent<TileData>();
+                    td.Pos = p;
+                    _tileDataMap.Add(p, td);
+
+                    if (data.Walls.Contains(p))
+                    {
+                        _walls.Add(p);
+                        tile.GetComponent<Renderer>().material.color = Color.black;
+                        tile.transform.localScale += Vector3.up * 1.5f;
+                    }
+                    else
+                    {
+                        ResetTileColor(p);
+                    }
+                }
             }
         }
 
-        HashSet<GridPos> enemySpawnSet = new HashSet<GridPos>(_enemySpawnPoints);
-        foreach (GridPos pos in _dungeonData.Floors)
+        foreach (var pair in data.Puzzles)
         {
-            if (pos == _heroPos) continue;
-            if (enemySpawnSet.Contains(pos)) continue;
-            if (_dungeonData.DoorSpots.Contains(pos)) continue;
-            if (!IsRoomTile(pos)) continue;
-            if (Random.Range(0, 100) >= objectChance) continue;
+            InteractiveObject door = SpawnObjectReturn(pair.DoorPos, ObjType.Door);
+            InteractiveObject sw = SpawnObjectReturn(pair.SwitchPos, ObjType.Switch);
 
-            ObjType type = Random.value < 0.2f ? ObjType.Chest : (Random.value < 0.5f ? ObjType.Crate : ObjType.Barrel);
-            SpawnObject(pos, type);
+            if (sw != null && door != null)
+            {
+                sw.LinkedObject = door;
+            }
+        }
+
+        foreach (var p in data.Floors)
+        {
+            if (p == _heroPos) continue;
+            if (_interactiveObjects.ContainsKey(p)) continue;
+
+            int rnd = Random.Range(0, 100);
+            if (rnd < puddleChance)
+            {
+                _tileDataMap[p].CurrentElement = Element.Water;
+                ResetTileColor(p);
+            }
+            else if (rnd < puddleChance + objectChance)
+            {
+                if (Random.value < 0.1f) SpawnObjectReturn(p, ObjType.Chest);
+                else SpawnObjectReturn(p, (Random.value < 0.5f) ? ObjType.Crate : ObjType.Barrel);
+            }
         }
 
         if (fogOfWar != null)
@@ -385,6 +415,56 @@ public class TacticalSystem : MonoBehaviour
         {
             Debug.LogWarning("FogOfWar is not assigned.");
         }
+    }
+
+    InteractiveObject SpawnObjectReturn(GridPos pos, ObjType type)
+    {
+        if (_interactiveObjects.ContainsKey(pos)) return null;
+
+        GameObject prefab = cratePrefab;
+        switch (type)
+        {
+            case ObjType.Barrel:
+                prefab = barrelPrefab;
+                break;
+            case ObjType.Door:
+                prefab = doorPrefab;
+                break;
+            case ObjType.Switch:
+                prefab = switchPrefab;
+                break;
+            case ObjType.Chest:
+                prefab = cratePrefab;
+                break;
+        }
+
+        if (prefab == null) return null;
+
+        GameObject obj = Instantiate(prefab, GetWorldPos(pos) + Vector3.up * 0.5f, Quaternion.identity);
+        InteractiveObject interact = obj.GetComponent<InteractiveObject>();
+        if (interact == null) interact = obj.AddComponent<InteractiveObject>();
+
+        interact.Type = type;
+        interact.Pos = pos;
+
+        if (type == ObjType.Chest)
+        {
+            interact.UpdateColor();
+            interact.LootModuleID = _lootPool[Random.Range(0, _lootPool.Length)];
+        }
+        else
+        {
+            interact.UpdateColor();
+        }
+
+        _interactiveObjects.Add(pos, interact);
+
+        if (type != ObjType.Switch)
+        {
+            _walls.Add(pos);
+        }
+
+        return interact;
     }
 
     void CreateTileVisual(GridPos pos, Transform parent, bool isWall)
