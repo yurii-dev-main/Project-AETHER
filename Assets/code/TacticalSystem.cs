@@ -369,6 +369,7 @@ public class TacticalSystem : MonoBehaviour
                     if (data.Walls.Contains(p))
                     {
                         _walls.Add(p);
+                        tile.name = "WALL";
                         tile.GetComponent<Renderer>().material.color = Color.black;
                         tile.transform.localScale += Vector3.up * 1.5f;
                     }
