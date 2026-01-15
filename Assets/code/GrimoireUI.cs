@@ -52,11 +52,7 @@ public class GrimoireUI : MonoBehaviour
         }
     }
 
-    // НОВЫЙ МЕТОД: Публичный, чтобы вызывать извне
-    public void RefreshButtons()
-    {
-        GenerateAllButtons();
-    }
+
 
     void GenerateAllButtons()
     {
@@ -103,4 +99,6 @@ public class GrimoireUI : MonoBehaviour
     public void SaveToSlot3() => tacticalSystem.UI_Compile(2);
     public void OnSliderChanged(float val) => tacticalSystem.UI_SetPower(val);
     public void OnOptimizeToggled(bool isOpt) => tacticalSystem.UI_ToggleOptimization(isOpt);
+    // НОВЫЙ МЕТОД: Публичный, чтобы вызывать извне
+    public void RefreshButtons() => GenerateAllButtons();
 }

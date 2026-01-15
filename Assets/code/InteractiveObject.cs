@@ -1,17 +1,19 @@
 using UnityEngine;
 
-public enum ObjType { Crate, Barrel, Door, Chest } // Добавили Door
+public enum ObjType { Crate, Barrel, Door, Chest, Switch } // Добавили Switch
 
 public class InteractiveObject : MonoBehaviour
 {
     public ObjType Type;
     public GridPos Pos;
 
-    // Что лежит внутри (только для сундуков)
+    [Header("Loot & Logic")]
     public string LootModuleID;
+    public InteractiveObject LinkedObject; // Ссылка на то, что мы открываем/роняем
 
+    [Header("State")]
     public bool IsFrozen = false;
-    public bool IsOpen = false; // Для двери
+    public bool IsOpen = false; // Для двери и рычага (Open = Activated)
 
     public void Shake()
     {
@@ -20,7 +22,7 @@ public class InteractiveObject : MonoBehaviour
 
     public void Freeze()
     {
-        if (IsFrozen || Type == ObjType.Door || Type == ObjType.Chest) return; // Двери пока не морозим
+        if (IsFrozen || Type == ObjType.Door || Type == ObjType.Chest || Type == ObjType.Switch) return;
         IsFrozen = true;
         GetComponent<Renderer>().material.color = Color.cyan;
     }
@@ -32,27 +34,45 @@ public class InteractiveObject : MonoBehaviour
         UpdateColor();
     }
 
-    // НОВОЕ: Открытие двери
     public void OpenDoor()
     {
-        if (Type != ObjType.Door || IsOpen) return;
-
+        if (IsOpen) return;
         IsOpen = true;
-        // Визуально "открываем" (уменьшаем или поворачиваем)
-        transform.localScale = new Vector3(0.2f, 1f, 0.2f);
-        // Меняем цвет на зеленый (проход)
-        GetComponent<Renderer>().material.color = Color.green;
 
-        // Важно: Логику удаления из стен (_walls.Remove) должен делать TacticalSystem
+        // Анимация открытия
+        if (Type == ObjType.Door)
+        {
+            transform.localScale = new Vector3(0.2f, 1f, 0.2f); // Дверь становится тонкой
+            GetComponent<Renderer>().material.color = Color.green;
+        }
+        else if (Type == ObjType.Switch)
+        {
+            // Рычаг меняет цвет
+            GetComponent<Renderer>().material.color = Color.green;
+            Debug.Log("Switch Activated!");
+
+            // Активируем связанный объект
+            if (LinkedObject != null)
+            {
+                if (LinkedObject.Type == ObjType.Door) LinkedObject.OpenDoor();
+                // Тут можно добавить логику для Люстры (Trap)
+            }
+        }
     }
 
     public void UpdateColor()
     {
         Renderer r = GetComponent<Renderer>();
-        if (Type == ObjType.Barrel) r.material.color = Color.red;
-        else if (Type == ObjType.Crate) r.material.color = new Color(0.6f, 0.4f, 0.2f); // Brown
-        else if (Type == ObjType.Door) r.material.color = new Color(0.4f, 0.2f, 0.1f); // Dark Wood
-        else if (Type == ObjType.Chest) r.material.color = Color.yellow;
+        if (r == null) return;
+
+        switch (Type)
+        {
+            case ObjType.Barrel: r.material.color = Color.red; break;
+            case ObjType.Crate: r.material.color = new Color(0.6f, 0.4f, 0.2f); break;
+            case ObjType.Door: r.material.color = new Color(0.4f, 0.2f, 0.1f); break;
+            case ObjType.Chest: r.material.color = Color.yellow; break;
+            case ObjType.Switch: r.material.color = Color.magenta; break; // Рычаг фиолетовый
+        }
     }
 
     System.Collections.IEnumerator ShakeRoutine()
