@@ -119,6 +119,7 @@ public class TacticalSystem : MonoBehaviour
     public GameObject barrelPrefab;
     public GameObject doorPrefab;
     public GameObject switchPrefab;
+    public List<GameObject> enemyPrefabs;
 
     [Header("VFX")]
     public GameObject vfxFireball;
@@ -562,7 +563,8 @@ public class TacticalSystem : MonoBehaviour
         {
             GridPos spawnPos = FindValidSpawnPosFromList();
             if (spawnPos.x == -1) continue;
-            GameObject newEnemy = Instantiate(enemyPrefab, GetWorldPos(spawnPos) + Vector3.up * 0.5f, Quaternion.identity);
+            GameObject randomPrefab = enemyPrefabs[Random.Range(0, enemyPrefabs.Count)];
+            GameObject newEnemy = Instantiate(randomPrefab, GetWorldPos(spawnPos) + Vector3.up * 0.5f, Quaternion.identity);
             UnitStats stats = newEnemy.GetComponent<UnitStats>();
             stats.maxHP += (_currentLevel - 1) * 20;
             stats.currentHP = stats.maxHP;
@@ -1405,7 +1407,19 @@ public class TacticalSystem : MonoBehaviour
     }
 
     bool IsValid(GridPos p) => p.x >= 0 && p.x < width && p.y >= 0 && p.y < height;
-
+    public bool IsValidForMove(GridPos p, HashSet<GridPos> currentWalls)
+    {
+        if (!IsValid(p)) return false; // За пределами карты
+        if (currentWalls.Contains(p)) return false; // Стена
+        if (_interactiveObjects.ContainsKey(p)) return false; // Ящик/Дверь
+        // Проверка: не занято ли другим врагом?
+        foreach (var e in _enemies)
+        {
+            if (e.activeSelf && GetGridPosFromWorld(e.transform.position) == p) return false;
+        }
+        if (_heroPos == p) return false; // Не вставать на героя
+        return true;
+    }
     void CheckEnemyProximity()
     {
         foreach (var enemy in _enemies)
