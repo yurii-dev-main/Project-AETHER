@@ -145,6 +145,7 @@ public class TacticalSystem : MonoBehaviour
     private Dictionary<GridPos, InteractiveObject> _interactiveObjects = new Dictionary<GridPos, InteractiveObject>();
     private MapGenerator.DungeonData _dungeonData;
     private List<GridPos> _enemySpawnPoints = new List<GridPos>();
+    private List<GridPos> _validFloors = new List<GridPos>();
     private List<GameObject> _enemies = new List<GameObject>();
     private List<UnitStats> _enemyStatsList = new List<UnitStats>();
     private List<EnemyAI> _enemyAIList = new List<EnemyAI>();
@@ -318,6 +319,7 @@ public class TacticalSystem : MonoBehaviour
         _gridVisuals.Clear();
         _walls.Clear();
         _tileDataMap.Clear();
+        _validFloors.Clear();
         foreach (var kvp in _interactiveObjects) Destroy(kvp.Value.gameObject);
         _interactiveObjects.Clear();
         foreach (var obj in _dynamicWalls) Destroy(obj);
@@ -344,6 +346,7 @@ public class TacticalSystem : MonoBehaviour
         }
 
         _enemySpawnPoints = new List<GridPos>(data.EnemySpawnPoints);
+        _validFloors = new List<GridPos>(data.Floors);
         _heroPos = data.StartPos;
 
         for (int x = 0; x < width; x++)
@@ -556,7 +559,8 @@ public class TacticalSystem : MonoBehaviour
         int enemyCount = 1 + (_currentLevel / 2);
         for (int i = 0; i < enemyCount; i++)
         {
-            GridPos spawnPos = FindValidSpawnPos();
+            GridPos spawnPos = FindValidSpawnPosFromList();
+            if (spawnPos.x == -1) continue;
             GameObject newEnemy = Instantiate(enemyPrefab, GetWorldPos(spawnPos) + Vector3.up * 0.5f, Quaternion.identity);
             UnitStats stats = newEnemy.GetComponent<UnitStats>();
             stats.maxHP += (_currentLevel - 1) * 20;
@@ -1448,6 +1452,30 @@ public class TacticalSystem : MonoBehaviour
             attempts--;
         }
         return new GridPos(width - 1, height - 1);
+    }
+
+    GridPos FindValidSpawnPosFromList()
+    {
+        int attempts = 50;
+        while (attempts > 0)
+        {
+            if (_validFloors.Count == 0) return new GridPos(-1, -1);
+
+            GridPos candidate = _validFloors[Random.Range(0, _validFloors.Count)];
+            bool isOccupied = candidate == _heroPos
+                              || _walls.Contains(candidate)
+                              || _interactiveObjects.ContainsKey(candidate);
+            foreach (var enemy in _enemies)
+            {
+                if (enemy == null) continue;
+                if (GetGridPosFromWorld(enemy.transform.position) == candidate) isOccupied = true;
+            }
+
+            if (!isOccupied) return candidate;
+            attempts--;
+        }
+
+        return new GridPos(-1, -1);
     }
 
     GridPos FindValidSpawnPos(int minX, int maxX)
