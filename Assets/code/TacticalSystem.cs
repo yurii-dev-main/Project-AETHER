@@ -16,7 +16,7 @@ public struct GridPos
 
 // --- 1. ÎÏÐÅÄÅËÅÍÈß È ÑÒÐÓÊÒÓÐÛ ---
 
-public enum Element { None, Fire, Water, Ice, Earth, Air, Force }
+public enum Element { None, Fire, Water, Ice, Earth, Air, Lightning, Force }
 public enum MotionType { LinearProjectile, ArcingProjectile, InstantRay, SelfBuff }
 public enum ShapeType { SingleTile, Cross, LineBeam }
 
@@ -242,6 +242,7 @@ public class TacticalSystem : MonoBehaviour
         if (IsUnlocked("Fire")) _libraryElement.Add(SpellModule.CreateElement("Fire", Element.Fire, Color.red));
         if (IsUnlocked("Ice")) _libraryElement.Add(SpellModule.CreateElement("Ice", Element.Ice, Color.cyan));
         if (IsUnlocked("Air")) _libraryElement.Add(SpellModule.CreateElement("Air", Element.Air, Color.white));
+        if (IsUnlocked("Lightning")) _libraryElement.Add(SpellModule.CreateElement("Lightning", Element.Lightning, Color.yellow));
     }
 
     void Update()
@@ -618,7 +619,7 @@ public class TacticalSystem : MonoBehaviour
         if (obj.Type == ObjType.Switch)
         {
             // Ðû÷àã ðåàãèðóåò íà ôèçè÷åñêîå âîçäåéñòâèå (Air/Force)
-            if (element == Element.Air || element == Element.Force)
+            if (element == Element.Air || element == Element.Force || element == Element.Lightning)
             {
                 obj.OpenDoor();
 
@@ -1022,6 +1023,30 @@ public class TacticalSystem : MonoBehaviour
                 }
             }
 
+            // --- ЛОГИКА LIGHTNING (ЭЛЕКТРОЛИЗ) ---
+            if (spell.MainElement == Element.Lightning && _tileDataMap.ContainsKey(tilePos))
+            {
+                if (_tileDataMap[tilePos].CurrentElement == Element.Water)
+                {
+                    List<GridPos> wetTiles = GetConnectedWater(tilePos);
+                    Debug.Log($"Electrocuted {wetTiles.Count} water tiles!");
+
+                    foreach (var wetTile in wetTiles)
+                    {
+                        StartCoroutine(FlashTile(wetTile, Color.yellow));
+
+                        foreach (var enemy in _enemies)
+                        {
+                            if (enemy != null && enemy.activeSelf && GetGridPosFromWorld(enemy.transform.position) == wetTile)
+                            {
+                                enemy.GetComponent<UnitStats>().TakeDamage(20);
+                            }
+                        }
+                        if (_heroPos == wetTile) _heroStats.TakeDamage(10);
+                    }
+                }
+            }
+
             // 3. Óðîí âðàãàì
             foreach (var enemy in _enemies)
             {
@@ -1044,6 +1069,11 @@ public class TacticalSystem : MonoBehaviour
                         enemyStats.TakeDamage(damage);
                     }
                     enemy.SetActive(true);
+
+                    if (spell.MainElement == Element.Lightning)
+                    {
+                        StartCoroutine(ChainLightningRoutine(enemy, spell.PowerLevel));
+                    }
 
                     // --- ЛОГИКА ТОЛЧКА ---
                     if (spell.MainElement == Element.Air && _heroInstance != null)
@@ -1664,5 +1694,98 @@ public class TacticalSystem : MonoBehaviour
             previewHeat
         );
 
+    }
+
+    // --- ЛОГИКА МОЛНИИ ---
+    List<GridPos> GetConnectedWater(GridPos start)
+    {
+        List<GridPos> connected = new List<GridPos>();
+        if (!_tileDataMap.ContainsKey(start) || _tileDataMap[start].CurrentElement != Element.Water)
+            return connected;
+
+        Queue<GridPos> queue = new Queue<GridPos>();
+        queue.Enqueue(start);
+        HashSet<GridPos> visited = new HashSet<GridPos> { start };
+
+        while (queue.Count > 0)
+        {
+            GridPos current = queue.Dequeue();
+            connected.Add(current);
+
+            GridPos[] neighbors =
+            {
+                new GridPos(current.x + 1, current.y), new GridPos(current.x - 1, current.y),
+                new GridPos(current.x, current.y + 1), new GridPos(current.x, current.y - 1)
+            };
+
+            foreach (var n in neighbors)
+            {
+                if (IsValid(n) && !visited.Contains(n)
+                    && _tileDataMap.ContainsKey(n) && _tileDataMap[n].CurrentElement == Element.Water)
+                {
+                    visited.Add(n);
+                    queue.Enqueue(n);
+                }
+            }
+        }
+        return connected;
+    }
+
+    GameObject FindNextChainTarget(Vector3 currentPos, List<GameObject> hitTargets, float range)
+    {
+        GameObject bestTarget = null;
+        float closestDist = range;
+
+        foreach (var enemy in _enemies)
+        {
+            if (enemy == null || !enemy.activeSelf || hitTargets.Contains(enemy)) continue;
+
+            float d = Vector3.Distance(currentPos, enemy.transform.position);
+            if (d < closestDist)
+            {
+                closestDist = d;
+                bestTarget = enemy;
+            }
+        }
+        return bestTarget;
+    }
+
+    IEnumerator ChainLightningRoutine(GameObject startTarget, int bounces)
+    {
+        List<GameObject> hitTargets = new List<GameObject> { startTarget };
+
+        GameObject current = startTarget;
+
+        for (int i = 0; i < bounces; i++)
+        {
+            yield return new WaitForSeconds(0.1f);
+
+            GameObject next = FindNextChainTarget(current.transform.position, hitTargets, tileSize * 4);
+
+            if (next != null)
+            {
+                if (vfxForceBeam != null)
+                {
+                    GameObject beam = Instantiate(vfxForceBeam, Vector3.zero, Quaternion.identity);
+                    LineRenderer lr = beam.GetComponent<LineRenderer>();
+                    if (lr)
+                    {
+                        lr.startColor = Color.yellow;
+                        lr.endColor = Color.yellow;
+                        lr.SetPosition(0, current.transform.position + Vector3.up);
+                        lr.SetPosition(1, next.transform.position + Vector3.up);
+                    }
+                    Destroy(beam, 0.3f);
+                }
+
+                next.GetComponent<UnitStats>().TakeDamage(10);
+                hitTargets.Add(next);
+                current = next;
+            }
+            else
+            {
+                break;
+            }
+        }
     }
 }

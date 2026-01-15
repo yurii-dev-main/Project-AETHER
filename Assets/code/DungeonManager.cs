@@ -50,6 +50,7 @@ public class DungeonManager : MonoBehaviour
         UnlockModule("Projectile"); // Способ доставки (Motion)
         UnlockModule("Point");      // Форма урона (Shape)
         UnlockModule("Fire");       // Стихия (Element)
+        UnlockModule("Lightning");  // Стихия (Element)
 
         // 3. Собираем первый спелл для игрока (чтобы слот 1 не был пустым)
         SavedSpellbook.Add(new SpellBlueprint("Fireball", Element.Fire, MotionType.LinearProjectile, ShapeType.SingleTile, 1, false, 10, 5, Color.red));
