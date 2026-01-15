@@ -16,7 +16,7 @@ public struct GridPos
 
 // --- 1. ÎÏÐÅÄÅËÅÍÈß È ÑÒÐÓÊÒÓÐÛ ---
 
-public enum Element { None, Fire, Water, Ice, Earth, Air }
+public enum Element { None, Fire, Water, Ice, Earth, Air, Force }
 public enum MotionType { LinearProjectile, ArcingProjectile, InstantRay, SelfBuff }
 public enum ShapeType { SingleTile, Cross, LineBeam }
 
@@ -498,6 +498,19 @@ public class TacticalSystem : MonoBehaviour
         obj.Shake();
         yield return new WaitForSeconds(0.2f);
 
+        if (obj.Type == ObjType.Switch)
+        {
+            if (element == Element.Air || element == Element.Force)
+            {
+                obj.OpenDoor();
+                if (obj.LinkedObject != null && obj.LinkedObject.Type == ObjType.Door)
+                {
+                    _walls.Remove(obj.LinkedObject.Pos);
+                }
+            }
+            yield break;
+        }
+
         if (obj.Type == ObjType.Chest)
         {
             Debug.Log($"LOOT FOUND: {obj.LootModuleID}");
@@ -933,8 +946,19 @@ public class TacticalSystem : MonoBehaviour
                     // --- ЛОГИКА ТОЛЧКА ---
                     if (spell.MainElement == Element.Air && _heroInstance != null)
                     {
-                        // 1. Вычисляем направление толчка (От Героя к Врагу)
-                        Vector3 pushDirVector = (enemy.transform.position - _heroInstance.transform.position).normalized;
+                        Vector3 pushDirVector = Vector3.zero;
+                        if (spell.Motion == MotionType.ArcingProjectile)
+                        {
+                            pushDirVector = (enemy.transform.position - GetWorldPos(targetCenter)).normalized;
+                            if (pushDirVector == Vector3.zero)
+                            {
+                                pushDirVector = (enemy.transform.position - _heroInstance.transform.position).normalized;
+                            }
+                        }
+                        else
+                        {
+                            pushDirVector = (enemy.transform.position - _heroInstance.transform.position).normalized;
+                        }
 
                         // 2. Округляем до осей (чтобы толкать строго по сетке)
                         int px = 0;
