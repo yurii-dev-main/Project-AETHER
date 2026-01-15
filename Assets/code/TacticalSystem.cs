@@ -119,6 +119,7 @@ public class TacticalSystem : MonoBehaviour
     public GameObject barrelPrefab;
     public GameObject doorPrefab;
     public GameObject switchPrefab;
+    public GameObject earthWallPrefab;
     public List<GameObject> enemyPrefabs;
 
     [Header("VFX")]
@@ -585,6 +586,20 @@ public class TacticalSystem : MonoBehaviour
         obj.Shake();
         yield return new WaitForSeconds(0.2f);
 
+        if (obj.Type == ObjType.EarthWall && element == Element.Fire)
+        {
+            Debug.Log("Melting Stone to Magma!");
+
+            if (_tileDataMap.ContainsKey(obj.Pos))
+            {
+                _tileDataMap[obj.Pos].CurrentElement = Element.Fire;
+            }
+
+            DestroyObject(obj.Pos);
+            ResetTileColor(obj.Pos);
+            yield break;
+        }
+
         // --- 1. ÄÂÅÐÜ (BREAKABLE) ---
         // Ôè÷à: Äâåðü ìîæíî âûáèòü ñèëîé èëè ñæå÷ü
         if (obj.Type == ObjType.Door)
@@ -631,6 +646,23 @@ public class TacticalSystem : MonoBehaviour
             yield break;
         }
 
+        if (obj.Type == ObjType.EarthWall || obj.Type == ObjType.Crate || obj.Type == ObjType.Barrel)
+        {
+            obj.TakeDamage(damage);
+            if (obj.CurrentHP <= 0)
+            {
+                if (obj.Type == ObjType.Barrel && element == Element.Fire)
+                {
+                    yield return TriggerExplosion(obj.Pos, obj);
+                }
+                else
+                {
+                    DestroyObject(obj.Pos);
+                }
+                yield break;
+            }
+        }
+
         // --- 4. ÎÑÒÀËÜÍÎÅ (Áî÷êè, ßùèêè) ---
         if (element == Element.Ice)
         {
@@ -640,11 +672,6 @@ public class TacticalSystem : MonoBehaviour
         if (element == Element.Fire)
         {
             if (obj.IsFrozen) obj.Unfreeze();
-            else
-            {
-                if (obj.Type == ObjType.Barrel) yield return TriggerExplosion(obj.Pos, obj);
-                else if (obj.Type == ObjType.Crate) DestroyObject(obj.Pos);
-            }
             yield break;
         }
         // Òîëêàåì òîëüêî åñëè ýòî íå äâåðü/ðû÷àã/ñóíäóê
@@ -963,6 +990,12 @@ public class TacticalSystem : MonoBehaviour
                 StartCoroutine(FlashTile(tilePos, c));
             else
                 StartCoroutine(FlashTile(tilePos, new Color(c.r, c.g, c.b, 0.2f)));
+
+            if (spell.MainElement == Element.Earth)
+            {
+                CastEarthWall(tilePos, spell.PowerLevel);
+                continue;
+            }
 
             // 1. ÈÍÒÅÐÀÊÒÈÂÍÛÅ ÎÁÚÅÊÒÛ (ÎÁÍÎÂËÅÍÎ)
             if (_interactiveObjects.ContainsKey(tilePos))
@@ -1338,6 +1371,41 @@ public class TacticalSystem : MonoBehaviour
         _dynamicWalls.Add(wall);
     }
 
+    void CastEarthWall(GridPos targetPos, int powerLevel)
+    {
+        if (earthWallPrefab == null)
+        {
+            Debug.LogWarning("Earth wall prefab is not assigned.");
+            return;
+        }
+        bool isOccupied = _walls.Contains(targetPos) || _interactiveObjects.ContainsKey(targetPos);
+        foreach (var enemy in _enemies)
+        {
+            if (enemy != null && enemy.activeSelf && GetGridPosFromWorld(enemy.transform.position) == targetPos)
+            {
+                isOccupied = true;
+                break;
+            }
+        }
+        if (targetPos == _heroPos) isOccupied = true;
+
+        if (isOccupied) return;
+
+        GameObject obj = Instantiate(earthWallPrefab, GetWorldPos(targetPos) + Vector3.up * 0.5f, Quaternion.identity);
+        InteractiveObject interact = obj.GetComponent<InteractiveObject>();
+        if (interact == null) interact = obj.AddComponent<InteractiveObject>();
+
+        interact.Type = ObjType.EarthWall;
+        interact.Pos = targetPos;
+        interact.InitHealth(30 * powerLevel);
+        interact.UpdateColor();
+
+        _interactiveObjects.Add(targetPos, interact);
+        _walls.Add(targetPos);
+
+        if (fogOfWar != null) fogOfWar.UpdateFog(_heroPos);
+    }
+
     IEnumerator MoveUnit(GameObject unit, GridPos targetStep)
     {
         Vector3 targetWorld = GetWorldPos(targetStep);
@@ -1352,6 +1420,17 @@ public class TacticalSystem : MonoBehaviour
             yield return null;
         }
         unit.transform.position = endPos;
+
+        if (_tileDataMap.ContainsKey(targetStep) && unit != null)
+        {
+            Element floor = _tileDataMap[targetStep].CurrentElement;
+            if (floor == Element.Fire)
+            {
+                UnitStats stats = unit.GetComponent<UnitStats>();
+                if (stats != null) stats.TakeDamage(10);
+                Debug.Log($"{unit.name} burned by Magma!");
+            }
+        }
     }
 
     public void UpdateEnemyVisibility(List<GridPos> visibleTiles)
@@ -1522,15 +1601,17 @@ public class TacticalSystem : MonoBehaviour
         Renderer rend = _gridVisuals[pos].GetComponent<Renderer>();
         Element el = _tileDataMap[pos].CurrentElement;
 
-        if (_walls.Contains(pos))
+        if (_walls.Contains(pos) && !_interactiveObjects.ContainsKey(pos) && el != Element.Ice)
         {
-            rend.material.color = (el == Element.Ice) ? Color.cyan : Color.black;
+            rend.material.color = Color.black;
             return;
         }
         if (el == Element.Water)
             rend.material.color = Color.blue;
         else if (el == Element.Fire)
-            rend.material.color = new Color(0.5f, 0, 0);
+            rend.material.color = new Color(1f, 0.5f, 0f);
+        else if (el == Element.Ice)
+            rend.material.color = Color.cyan;
         else
         {
             bool isDark = (pos.x + pos.y) % 2 == 0;
