@@ -582,88 +582,70 @@ public class TacticalSystem : MonoBehaviour
         obj.Shake();
         yield return new WaitForSeconds(0.2f);
 
+        // --- 1. ÄÂÅÐÜ (BREAKABLE) ---
+        // Ôè÷à: Äâåðü ìîæíî âûáèòü ñèëîé èëè ñæå÷ü
+        if (obj.Type == ObjType.Door)
+        {
+            bool strongWater = element == Element.Water && damage >= 20;
+            if (element == Element.Air || element == Element.Fire || element == Element.Force || strongWater)
+            {
+                Debug.Log("Door BREACHED by Magic!");
+                obj.OpenDoor();
+                _walls.Remove(obj.Pos);
+            }
+            yield break;
+        }
+
+        // --- 2. ÐÛ×ÀÃ ---
         if (obj.Type == ObjType.Switch)
         {
+            // Ðû÷àã ðåàãèðóåò íà ôèçè÷åñêîå âîçäåéñòâèå (Air/Force)
             if (element == Element.Air || element == Element.Force)
             {
                 obj.OpenDoor();
+
+                // Ìàãèÿ ñâÿçåé: Îòêðûâàåì ïðèâÿçàííóþ äâåðü
                 if (obj.LinkedObject != null && obj.LinkedObject.Type == ObjType.Door)
                 {
+                    Debug.Log("Door Unlocked via Switch!");
+                    obj.LinkedObject.OpenDoor();
                     _walls.Remove(obj.LinkedObject.Pos);
                 }
             }
             yield break;
         }
 
+        // --- 3. ÑÓÍÄÓÊ ---
         if (obj.Type == ObjType.Chest)
         {
             Debug.Log($"LOOT FOUND: {obj.LootModuleID}");
-
-            if (DungeonManager.Instance != null)
-            {
-                DungeonManager.Instance.UnlockModule(obj.LootModuleID);
-            }
-
+            if (DungeonManager.Instance != null) DungeonManager.Instance.UnlockModule(obj.LootModuleID);
             InitLibrary();
-            GrimoireUI grimoire = FindFirstObjectByType<GrimoireUI>();
-            if (grimoire != null) grimoire.RefreshButtons();
-
-            if (UIManager.Instance != null)
-            {
-                UIManager.Instance.ShowLootMessage(obj.LootModuleID);
-            }
+            if (FindFirstObjectByType<GrimoireUI>()) FindFirstObjectByType<GrimoireUI>().RefreshButtons();
+            if (UIManager.Instance != null) UIManager.Instance.ShowLootMessage(obj.LootModuleID);
 
             DestroyObject(obj.Pos);
             yield break;
         }
 
-        if (obj.Type == ObjType.Door && (element == Element.Air || element == Element.Fire))
-        {
-            obj.OpenDoor();
-            _walls.Remove(obj.Pos);
-            yield break;
-        }
-
-        // 1. ËÅÄ (Çàìîðîçêà)
+        // --- 4. ÎÑÒÀËÜÍÎÅ (Áî÷êè, ßùèêè) ---
         if (element == Element.Ice)
         {
-            if (!obj.IsFrozen)
-            {
-                Debug.Log("Object Frozen!");
-                obj.Freeze();
-            }
+            if (!obj.IsFrozen) obj.Freeze();
             yield break;
         }
-
-        // 2. ÎÃÎÍÜ
         if (element == Element.Fire)
         {
-            if (obj.IsFrozen)
-            {
-                Debug.Log("Object Unfrozen!");
-                obj.Unfreeze();
-            }
+            if (obj.IsFrozen) obj.Unfreeze();
             else
             {
-                if (obj.Type == ObjType.Barrel)
-                {
-                    Debug.Log("BARREL EXPLOSION!");
-                    yield return TriggerExplosion(obj.Pos);
-                }
-                else if (obj.Type == ObjType.Crate)
-                {
-                    Debug.Log("Crate Burned!");
-                    DestroyObject(obj.Pos);
-                }
+                if (obj.Type == ObjType.Barrel) yield return TriggerExplosion(obj.Pos, obj);
+                else if (obj.Type == ObjType.Crate) DestroyObject(obj.Pos);
             }
             yield break;
         }
-
-        // 3. AIR - ÒÎË×ÎÊ
-        if (element == Element.Air)
-        {
-            yield return PushObjectRoutine(obj);
-        }
+        // Òîëêàåì òîëüêî åñëè ýòî íå äâåðü/ðû÷àã/ñóíäóê
+        if (element == Element.Air || element == Element.Force) yield return PushObjectRoutine(obj);
     }
 
     int CountFloorNeighbors(GridPos pos)
