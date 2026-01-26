@@ -3315,6 +3315,12 @@ MonoBehaviour:
   cratePrefab: {fileID: 1561251448111391853, guid: f89643c5660811744838c7d2dd77e438, type: 3}
   barrelPrefab: {fileID: 3829460142775095232, guid: dabecdcd596a7334d8e3ba0fa56759e5, type: 3}
   doorPrefab: {fileID: 1366932429293899865, guid: b6b967867cde2214c913da91fd995e56, type: 3}
+  switchPrefab: {fileID: 719137933509761350, guid: 783d559828e8b0f42a4f8f2f973632c9, type: 3}
+  earthWallPrefab: {fileID: 4279570715372965537, guid: b2ada027369948a41b62bce5ba35ba09, type: 3}
+  enemyPrefabs:
+  - {fileID: 1952039330323421859, guid: e0ce9af0d50da7843b6a414728793bbb, type: 3}
+  - {fileID: 1952039330323421859, guid: 830fe096d9c159a43812455ccf86f08b, type: 3}
+  - {fileID: 5554885943118411730, guid: d2dacff0645fb06409fc7cdd04b98ecf, type: 3}
   vfxFireball: {fileID: 5848335706960441983, guid: ee435f643dd8e13478f18e8eb126bb08, type: 3}
   vfxIceWall: {fileID: 6466303380954877913, guid: 474b06383d8e0ff49b0f08858e9f4ed4, type: 3}
   vfxForceBeam: {fileID: 484315684226608658, guid: 9843911356fa0fe438e7ae7714ea6cc1, type: 3}
@@ -3393,9 +3399,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: acc6d99c23103c04db49680aa014d471, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MapGenerator
-  minRoomSize: 9
-  maxRoomSize: 5
-  maxRooms: 10
+  minRoomSize: 5
+  maxRoomSize: 9
+  maxRooms: 3
 --- !u!1 &1318693212
 GameObject:
   m_ObjectHideFlags: 0
