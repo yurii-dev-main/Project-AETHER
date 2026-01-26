@@ -936,17 +936,14 @@ public class TacticalSystem : MonoBehaviour
                     }
                     yield return new WaitForSeconds(0.2f);
                 }
+                else if (vfxForcePillar != null && spell.MainElement != Element.Air)
+                {
+                    GameObject pillar = Instantiate(vfxForcePillar, GetWorldPos(targetCenter), Quaternion.identity);
+                    Destroy(pillar, 2.0f);
+                }
                 else
                 {
-                    if (vfxForcePillar != null)
-                    {
-                        GameObject pillar = Instantiate(vfxForcePillar, GetWorldPos(targetCenter), Quaternion.identity);
-                        Destroy(pillar, 2.0f);
-                    }
-                    else
-                    {
-                        yield return FlashTile(targetCenter, c);
-                    }
+                    yield return FlashTile(targetCenter, c);
                 }
             }
         }
@@ -954,7 +951,39 @@ public class TacticalSystem : MonoBehaviour
         {
             yield return new WaitForSeconds(0.1f);
         }
-        // Îïðåäåëåíèå çîíû
+        List<GridPos> affectedTiles = CalculateAffectedTiles(spell, targetCenter);
+
+        foreach (GridPos tilePos in affectedTiles)
+        {
+            if (!IsValid(tilePos)) continue;
+            if (showVFX)
+                StartCoroutine(FlashTile(tilePos, c));
+            else
+                StartCoroutine(FlashTile(tilePos, new Color(c.r, c.g, c.b, 0.2f)));
+        }
+
+        switch (spell.MainElement)
+        {
+            case Element.Earth:
+                yield return HandleEarth(spell, affectedTiles);
+                break;
+            case Element.Fire:
+                yield return HandleFire(spell, affectedTiles);
+                break;
+            case Element.Ice:
+                yield return HandleIce(spell, affectedTiles);
+                break;
+            case Element.Air:
+                yield return HandleAir(spell, affectedTiles, targetCenter);
+                break;
+            case Element.Lightning:
+                yield return HandleLightning(spell, affectedTiles);
+                break;
+        }
+    }
+
+    List<GridPos> CalculateAffectedTiles(SpellBlueprint spell, GridPos targetCenter)
+    {
         List<GridPos> affectedTiles = new List<GridPos>();
         if (spell.Shape == ShapeType.SingleTile)
             affectedTiles.Add(targetCenter);
@@ -984,146 +1013,246 @@ public class TacticalSystem : MonoBehaviour
             }
         }
 
+        return affectedTiles;
+    }
+
+    IEnumerator HandleEarth(SpellBlueprint spell, List<GridPos> affectedTiles)
+    {
         foreach (GridPos tilePos in affectedTiles)
         {
             if (!IsValid(tilePos)) continue;
-            if (showVFX)
-                StartCoroutine(FlashTile(tilePos, c));
-            else
-                StartCoroutine(FlashTile(tilePos, new Color(c.r, c.g, c.b, 0.2f)));
 
-            if (spell.MainElement == Element.Earth)
+            if (spell.Motion == MotionType.InstantRay)
             {
-                CastEarthWall(tilePos, spell.PowerLevel);
+                if (TryDamageEnemyAtTile(tilePos, 15 * spell.PowerLevel))
+                {
+                    Debug.Log("Earth Spikes hit enemy!");
+                }
+                else if (tilePos == _heroPos)
+                {
+                    _heroStats.TakeDamage(5);
+                }
+                else if (!IsTileOccupied(tilePos))
+                {
+                    CastEarthWall(tilePos, spell.PowerLevel);
+                }
                 continue;
             }
 
-            // 1. ÈÍÒÅÐÀÊÒÈÂÍÛÅ ÎÁÚÅÊÒÛ (ÎÁÍÎÂËÅÍÎ)
-            if (_interactiveObjects.ContainsKey(tilePos))
-            {
-                yield return HitObject(_interactiveObjects[tilePos], spell.MainElement, 10 * spell.PowerLevel);
-            }
+            yield return ApplyObjectHit(tilePos, spell);
+            ApplyEnemyDamage(tilePos, spell, 1f);
+        }
+    }
 
-            // 2. Ðåàêöèÿ ñ ïîëîì
-            if (_tileDataMap.ContainsKey(tilePos))
-            {
-                TileData tile = _tileDataMap[tilePos];
-                if (spell.MainElement == Element.Fire && tile.CurrentElement == Element.Ice)
-                {
-                    tile.CurrentElement = Element.Water;
-                    _walls.Remove(tilePos);
-                    ResetTileColor(tilePos);
-                }
-                else if (spell.MainElement == Element.Ice && tile.CurrentElement == Element.Water)
-                {
-                    tile.CurrentElement = Element.Ice;
-                    _walls.Add(tilePos);
-                    ResetTileColor(tilePos);
-                    CastIceWall(tilePos);
-                }
-            }
+    IEnumerator HandleFire(SpellBlueprint spell, List<GridPos> affectedTiles)
+    {
+        foreach (GridPos tilePos in affectedTiles)
+        {
+            if (!IsValid(tilePos)) continue;
 
-            // --- ЛОГИКА LIGHTNING (ЭЛЕКТРОЛИЗ) ---
-            if (spell.MainElement == Element.Lightning && _tileDataMap.ContainsKey(tilePos))
-            {
-                if (_tileDataMap[tilePos].CurrentElement == Element.Water)
-                {
-                    List<GridPos> wetTiles = GetConnectedWater(tilePos);
-                    Debug.Log($"Electrocuted {wetTiles.Count} water tiles!");
+            yield return ApplyObjectHit(tilePos, spell);
+            ApplyFireFloorReaction(tilePos);
+            ApplyEnemyDamage(tilePos, spell, 1f);
+        }
+    }
 
-                    foreach (var wetTile in wetTiles)
-                    {
-                        StartCoroutine(FlashTile(wetTile, Color.yellow));
+    IEnumerator HandleIce(SpellBlueprint spell, List<GridPos> affectedTiles)
+    {
+        foreach (GridPos tilePos in affectedTiles)
+        {
+            if (!IsValid(tilePos)) continue;
 
-                        foreach (var enemy in _enemies)
-                        {
-                            if (enemy != null && enemy.activeSelf && GetGridPosFromWorld(enemy.transform.position) == wetTile)
-                            {
-                                enemy.GetComponent<UnitStats>().TakeDamage(20);
-                            }
-                        }
-                        if (_heroPos == wetTile) _heroStats.TakeDamage(10);
-                    }
-                }
-            }
+            yield return ApplyObjectHit(tilePos, spell);
+            ApplyIceFloorReaction(tilePos);
+            ApplyEnemyDamage(tilePos, spell, 1f);
+        }
+    }
 
-            // 3. Óðîí âðàãàì
+    IEnumerator HandleAir(SpellBlueprint spell, List<GridPos> affectedTiles, GridPos targetCenter)
+    {
+        foreach (GridPos tilePos in affectedTiles)
+        {
+            if (!IsValid(tilePos)) continue;
+
+            yield return ApplyObjectHit(tilePos, spell);
+
             foreach (var enemy in _enemies)
             {
                 if (enemy == null || !enemy.activeSelf) continue;
-
                 GridPos enPos = GetGridPosFromWorld(enemy.transform.position);
+                if (tilePos != enPos) continue;
 
-                // Если тайл эффекта совпал с позицией врага
-                if (tilePos == enPos)
+                int damage = 2;
+                UnitStats enemyStats = enemy.GetComponent<UnitStats>();
+                if (enemyStats != null) enemyStats.TakeDamage(damage);
+                enemy.SetActive(true);
+
+                if (_heroInstance == null) continue;
+
+                Vector3 pushDirVector = Vector3.zero;
+                if (spell.Motion == MotionType.ArcingProjectile)
                 {
-                    float mult = spell.PowerLevel == 2 ? 1.5f : (spell.PowerLevel == 3 ? 2.5f : 1f);
-                    int damage = Mathf.RoundToInt(10 * mult);
-
-                    // AIR почти не наносит урона
-                    if (spell.MainElement == Element.Air) damage = 2;
-
-                    UnitStats enemyStats = enemy.GetComponent<UnitStats>();
-                    if (enemyStats != null)
+                    pushDirVector = (enemy.transform.position - GetWorldPos(targetCenter)).normalized;
+                    if (pushDirVector == Vector3.zero)
                     {
-                        enemyStats.TakeDamage(damage);
-                    }
-                    enemy.SetActive(true);
-
-                    if (spell.MainElement == Element.Lightning)
-                    {
-                        StartCoroutine(ChainLightningRoutine(enemy, spell.PowerLevel));
-                    }
-
-                    // --- ЛОГИКА ТОЛЧКА ---
-                    if (spell.MainElement == Element.Air && _heroInstance != null)
-                    {
-                        Vector3 pushDirVector = Vector3.zero;
-                        if (spell.Motion == MotionType.ArcingProjectile)
-                        {
-                            pushDirVector = (enemy.transform.position - GetWorldPos(targetCenter)).normalized;
-                            if (pushDirVector == Vector3.zero)
-                            {
-                                pushDirVector = (enemy.transform.position - _heroInstance.transform.position).normalized;
-                            }
-                        }
-                        else
-                        {
-                            pushDirVector = (enemy.transform.position - _heroInstance.transform.position).normalized;
-                        }
-
-                        // 2. Округляем до осей (чтобы толкать строго по сетке)
-                        int px = 0;
-                        int py = 0;
-                        if (Mathf.Abs(pushDirVector.x) > Mathf.Abs(pushDirVector.z)) px = (int)Mathf.Sign(pushDirVector.x);
-                        else py = (int)Mathf.Sign(pushDirVector.z);
-
-                        // 3. Целевая клетка
-                        GridPos pushDest = new GridPos(enPos.x + px, enPos.y + py);
-
-                        Debug.Log($"Air Hit! Pushing Enemy to [{pushDest.x}, {pushDest.y}]");
-
-                        // 4. Проверка валидности
-                        // Можно толкать, если: клетка в карте И (нет стены ИЛИ есть ящик/бочка) И нет другого врага
-                        bool isBlockedByWall = _walls.Contains(pushDest) && !_interactiveObjects.ContainsKey(pushDest);
-                        bool isBlockedByUnit = (pushDest == _heroPos);
-
-                        if (IsValid(pushDest) && !isBlockedByWall && !isBlockedByUnit)
-                        {
-                            yield return MoveUnit(enemy, pushDest);
-                        }
-                        else
-                        {
-                            Debug.Log("Push Blocked! Bonus Wall Damage.");
-                            if (enemyStats != null)
-                            {
-                                enemyStats.TakeDamage(15);
-                            }
-                            StartCoroutine(FlashTile(tilePos, Color.white));
-                        }
+                        pushDirVector = (enemy.transform.position - _heroInstance.transform.position).normalized;
                     }
                 }
+                else
+                {
+                    pushDirVector = (enemy.transform.position - _heroInstance.transform.position).normalized;
+                }
+
+                int px = 0;
+                int py = 0;
+                if (Mathf.Abs(pushDirVector.x) > Mathf.Abs(pushDirVector.z)) px = (int)Mathf.Sign(pushDirVector.x);
+                else py = (int)Mathf.Sign(pushDirVector.z);
+
+                GridPos pushDest = new GridPos(enPos.x + px, enPos.y + py);
+
+                Debug.Log($"Air Hit! Pushing Enemy to [{pushDest.x}, {pushDest.y}]");
+
+                bool isBlockedByWall = _walls.Contains(pushDest) && !_interactiveObjects.ContainsKey(pushDest);
+                bool isBlockedByUnit = (pushDest == _heroPos);
+
+                if (IsValid(pushDest) && !isBlockedByWall && !isBlockedByUnit)
+                {
+                    yield return MoveUnit(enemy, pushDest);
+                }
+                else
+                {
+                    Debug.Log("Push Blocked! Bonus Wall Damage.");
+                    if (enemyStats != null)
+                    {
+                        enemyStats.TakeDamage(15);
+                    }
+                    StartCoroutine(FlashTile(tilePos, Color.white));
+                }
             }
+        }
+    }
+
+    IEnumerator HandleLightning(SpellBlueprint spell, List<GridPos> affectedTiles)
+    {
+        foreach (GridPos tilePos in affectedTiles)
+        {
+            if (!IsValid(tilePos)) continue;
+
+            yield return ApplyObjectHit(tilePos, spell);
+            ApplyLightningElectrolysis(tilePos);
+            ApplyLightningDamage(tilePos, spell);
+        }
+    }
+
+    bool IsTileOccupied(GridPos tilePos)
+    {
+        if (_walls.Contains(tilePos) || _interactiveObjects.ContainsKey(tilePos)) return true;
+        foreach (var enemy in _enemies)
+        {
+            if (enemy != null && enemy.activeSelf && GetGridPosFromWorld(enemy.transform.position) == tilePos)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    IEnumerator ApplyObjectHit(GridPos tilePos, SpellBlueprint spell)
+    {
+        if (_interactiveObjects.ContainsKey(tilePos))
+        {
+            yield return HitObject(_interactiveObjects[tilePos], spell.MainElement, 10 * spell.PowerLevel);
+        }
+    }
+
+    bool TryDamageEnemyAtTile(GridPos tilePos, int damage)
+    {
+        foreach (var enemy in _enemies)
+        {
+            if (enemy == null || !enemy.activeSelf) continue;
+            if (GetGridPosFromWorld(enemy.transform.position) != tilePos) continue;
+
+            UnitStats enemyStats = enemy.GetComponent<UnitStats>();
+            if (enemyStats != null) enemyStats.TakeDamage(damage);
+            enemy.SetActive(true);
+            return true;
+        }
+        return false;
+    }
+
+    void ApplyEnemyDamage(GridPos tilePos, SpellBlueprint spell, float baseScale)
+    {
+        float mult = spell.PowerLevel == 2 ? 1.5f : (spell.PowerLevel == 3 ? 2.5f : 1f);
+        int damage = Mathf.RoundToInt(10 * mult * baseScale);
+        if (spell.MainElement == Element.Air) damage = 2;
+        TryDamageEnemyAtTile(tilePos, damage);
+    }
+
+    void ApplyFireFloorReaction(GridPos tilePos)
+    {
+        if (_tileDataMap.ContainsKey(tilePos))
+        {
+            TileData tile = _tileDataMap[tilePos];
+            if (tile.CurrentElement == Element.Ice)
+            {
+                tile.CurrentElement = Element.Water;
+                _walls.Remove(tilePos);
+                ResetTileColor(tilePos);
+            }
+        }
+    }
+
+    void ApplyIceFloorReaction(GridPos tilePos)
+    {
+        if (_tileDataMap.ContainsKey(tilePos))
+        {
+            TileData tile = _tileDataMap[tilePos];
+            if (tile.CurrentElement == Element.Water)
+            {
+                tile.CurrentElement = Element.Ice;
+                _walls.Add(tilePos);
+                ResetTileColor(tilePos);
+                CastIceWall(tilePos);
+            }
+        }
+    }
+
+    void ApplyLightningElectrolysis(GridPos tilePos)
+    {
+        if (_tileDataMap.ContainsKey(tilePos) && _tileDataMap[tilePos].CurrentElement == Element.Water)
+        {
+            List<GridPos> wetTiles = GetConnectedWater(tilePos);
+            Debug.Log($"Electrocuted {wetTiles.Count} water tiles!");
+
+            foreach (var wetTile in wetTiles)
+            {
+                StartCoroutine(FlashTile(wetTile, Color.yellow));
+
+                foreach (var enemy in _enemies)
+                {
+                    if (enemy != null && enemy.activeSelf && GetGridPosFromWorld(enemy.transform.position) == wetTile)
+                    {
+                        enemy.GetComponent<UnitStats>().TakeDamage(20);
+                    }
+                }
+                if (_heroPos == wetTile) _heroStats.TakeDamage(10);
+            }
+        }
+    }
+
+    void ApplyLightningDamage(GridPos tilePos, SpellBlueprint spell)
+    {
+        foreach (var enemy in _enemies)
+        {
+            if (enemy == null || !enemy.activeSelf) continue;
+            if (GetGridPosFromWorld(enemy.transform.position) != tilePos) continue;
+
+            float mult = spell.PowerLevel == 2 ? 1.5f : (spell.PowerLevel == 3 ? 2.5f : 1f);
+            int damage = Mathf.RoundToInt(10 * mult);
+            UnitStats enemyStats = enemy.GetComponent<UnitStats>();
+            if (enemyStats != null) enemyStats.TakeDamage(damage);
+            enemy.SetActive(true);
+            StartCoroutine(ChainLightningRoutine(enemy, spell.PowerLevel));
         }
     }
 
@@ -1269,6 +1398,10 @@ public class TacticalSystem : MonoBehaviour
             if (cmd.Type == "WAIT")
             {
                 yield return new WaitForSeconds(0.5f);
+                if (_tileDataMap.ContainsKey(_heroPos) && _tileDataMap[_heroPos].CurrentElement == Element.Fire)
+                {
+                    _heroStats.TakeDamage(10);
+                }
                 _heroStats.CoolDown(5);
             }
             else if (cmd.Type == "MOVE")
