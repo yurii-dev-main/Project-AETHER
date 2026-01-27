@@ -128,6 +128,7 @@ public class TacticalSystem : MonoBehaviour
     public GameObject vfxForceBeam;
     public GameObject vfxForcePillar;
     public GameObject vfxExplosion;
+    public GameObject vfxEarthSpikes;
 
     private string[] _lootPool =
     {
@@ -1042,6 +1043,7 @@ public class TacticalSystem : MonoBehaviour
                 }
                 else
                 {
+                    SpawnEarthSpikes(tilePos, spell.PowerLevel);
                     if (_interactiveObjects.ContainsKey(tilePos))
                     {
                         yield return HitObject(_interactiveObjects[tilePos], Element.Earth, 20 * spell.PowerLevel);
@@ -1059,6 +1061,7 @@ public class TacticalSystem : MonoBehaviour
                     }
                     else
                     {
+                        SpawnEarthSpikes(tilePos, spell.PowerLevel);
                         if (_interactiveObjects.ContainsKey(tilePos))
                         {
                             yield return HitObject(_interactiveObjects[tilePos], Element.Earth, 20 * spell.PowerLevel);
@@ -1085,6 +1088,16 @@ public class TacticalSystem : MonoBehaviour
             ApplyFireFloorReaction(tilePos);
             ApplyEnemyDamage(tilePos, spell, 1f);
         }
+    }
+
+    void SpawnEarthSpikes(GridPos tilePos, int powerLevel)
+    {
+        Debug.Log("Earth Spikes Eruption!");
+        if (vfxEarthSpikes == null) return;
+
+        GameObject spikes = Instantiate(vfxEarthSpikes, GetWorldPos(tilePos), Quaternion.identity);
+        spikes.transform.localScale *= powerLevel;
+        Destroy(spikes, 2.0f);
     }
 
     IEnumerator HandleIce(SpellBlueprint spell, List<GridPos> affectedTiles)
