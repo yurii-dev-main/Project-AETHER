@@ -280,6 +280,15 @@ public class TacticalSystem : MonoBehaviour
             _isGrimoireOpen = !_isGrimoireOpen;
             if (UIManager.Instance != null) UIManager.Instance.ToggleGrimoire(_isGrimoireOpen);
         }
+        if (_currentState == BattleState.PlayerPlanning && !_isGrimoireOpen)
+        {
+            UpdatePreview();
+        }
+        else
+        {
+            if (PreviewManager.Instance) PreviewManager.Instance.HideGhost();
+        }
+
         if (_isGrimoireOpen) return;
         if (_currentState != BattleState.PlayerPlanning) return;
 
@@ -954,7 +963,7 @@ public class TacticalSystem : MonoBehaviour
         {
             yield return new WaitForSeconds(0.1f);
         }
-        List<GridPos> affectedTiles = CalculateAffectedTiles(spell, targetCenter);
+        List<GridPos> affectedTiles = CalculateSpellArea(spell, _heroPos, targetCenter);
 
         foreach (GridPos tilePos in affectedTiles)
         {
@@ -985,31 +994,31 @@ public class TacticalSystem : MonoBehaviour
         }
     }
 
-    List<GridPos> CalculateAffectedTiles(SpellBlueprint spell, GridPos targetCenter)
+    public List<GridPos> CalculateSpellArea(SpellBlueprint spell, GridPos heroPos, GridPos targetPos)
     {
         List<GridPos> affectedTiles = new List<GridPos>();
         if (spell.Shape == ShapeType.SingleTile)
-            affectedTiles.Add(targetCenter);
+            affectedTiles.Add(targetPos);
         else if (spell.Shape == ShapeType.Cross)
         {
-            affectedTiles.Add(targetCenter);
-            affectedTiles.Add(new GridPos(targetCenter.x + 1, targetCenter.y));
-            affectedTiles.Add(new GridPos(targetCenter.x - 1, targetCenter.y));
-            affectedTiles.Add(new GridPos(targetCenter.x, targetCenter.y + 1));
-            affectedTiles.Add(new GridPos(targetCenter.x, targetCenter.y - 1));
+            affectedTiles.Add(targetPos);
+            affectedTiles.Add(new GridPos(targetPos.x + 1, targetPos.y));
+            affectedTiles.Add(new GridPos(targetPos.x - 1, targetPos.y));
+            affectedTiles.Add(new GridPos(targetPos.x, targetPos.y + 1));
+            affectedTiles.Add(new GridPos(targetPos.x, targetPos.y - 1));
         }
         else if (spell.Shape == ShapeType.LineBeam)
         {
-            Vector3 dirVector = (GetWorldPos(targetCenter) - GetWorldPos(_heroPos)).normalized;
+            Vector3 dirVector = (GetWorldPos(targetPos) - GetWorldPos(heroPos)).normalized;
 
             float dist = Mathf.Max(width, height) * 1.5f;
-            Vector3 endWorld = GetWorldPos(_heroPos) + dirVector * (dist * tileSize);
+            Vector3 endWorld = GetWorldPos(heroPos) + dirVector * (dist * tileSize);
             GridPos endGrid = GetGridPosFromWorld(endWorld);
 
-            List<GridPos> rawLine = GetCellsOnLine(_heroPos, endGrid);
+            List<GridPos> rawLine = GetCellsOnLine(heroPos, endGrid);
             foreach (var cell in rawLine)
             {
-                if (cell == _heroPos) continue;
+                if (cell == heroPos) continue;
                 if (!IsValid(cell)) break;
                 if (_walls.Contains(cell) && !_interactiveObjects.ContainsKey(cell)) break;
                 affectedTiles.Add(cell);
@@ -1452,6 +1461,51 @@ public class TacticalSystem : MonoBehaviour
         }
     }
 
+    void UpdatePreview()
+    {
+        if (PreviewManager.Instance == null) return;
+        PreviewManager.Instance.ShowGhost();
+
+        GridPos ghostPos = _heroPos;
+        if (CommandQueue.Count > 0)
+        {
+            for (int i = CommandQueue.Count - 1; i >= 0; i--)
+            {
+                if (CommandQueue[i].Type == "MOVE")
+                {
+                    ghostPos = CommandQueue[i].TargetPos;
+                    break;
+                }
+            }
+        }
+
+        PreviewManager.Instance.UpdateGhostHero(heroPrefab, GetWorldPos(ghostPos) + Vector3.up * 0.5f, _heroInstance.transform.rotation);
+
+        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        RaycastHit[] hits = Physics.RaycastAll(ray);
+        foreach (var hit in hits)
+        {
+            TileData tile = hit.collider.GetComponent<TileData>();
+            if (tile != null)
+            {
+                if (_selectedSpellIndex != -1 && _selectedSpellIndex < Spellbook.Count)
+                {
+                    SpellBlueprint spell = Spellbook[_selectedSpellIndex];
+                    if (spell != null)
+                    {
+                        List<GridPos> area = CalculateSpellArea(spell, ghostPos, tile.Pos);
+                        PreviewManager.Instance.ShowSpellPreview(area, spell.VisualColor);
+                    }
+                }
+                else
+                {
+                    PreviewManager.Instance.ClearHighlights();
+                }
+                break;
+            }
+        }
+    }
+
     // --- EXECUTION ---
     IEnumerator ExecutePlayerTurn()
     {
@@ -1743,6 +1797,7 @@ public class TacticalSystem : MonoBehaviour
     }
 
     Vector3 GetWorldPos(GridPos pos) => new Vector3(pos.x * tileSize, 0, pos.y * tileSize);
+    public Vector3 GetWorldPosPublic(GridPos pos) => GetWorldPos(pos);
 
     GridPos FindValidSpawnPos()
     {
