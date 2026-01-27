@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public enum ObjType { Crate, Barrel, Door, Chest, Switch, EarthWall } // Добавили EarthWall
+public enum ObjType { Crate, Barrel, Door, Chest, Switch, EarthWall }
 
 public class InteractiveObject : MonoBehaviour
 {
@@ -28,24 +28,13 @@ public class InteractiveObject : MonoBehaviour
 
     public void TakeDamage(int dmg)
     {
-        // Если объект заморожен - он хрупкий (получает двойной урон?)
-        // Пока просто получаем урон
+        if (this == null) return; // Защита
         CurrentHP -= dmg;
         Shake();
-
-        if (CurrentHP <= 0)
-        {
-            // Логика разрушения обрабатывается в TacticalSystem, 
-            // но визуально можно показать трещины
-        }
-        else
-        {
-            // Эффект "Боли"
-            StartCoroutine(FlashWhite());
-        }
+        if (CurrentHP > 0) StartCoroutine(FlashWhite());
     }
 
-    public void Shake() { StartCoroutine(ShakeRoutine()); }
+    public void Shake() { if (this != null) StartCoroutine(ShakeRoutine()); }
 
     public void Freeze()
     {
@@ -81,7 +70,6 @@ public class InteractiveObject : MonoBehaviour
     {
         Renderer r = GetComponent<Renderer>();
         if (r == null) return;
-
         switch (Type)
         {
             case ObjType.Barrel: r.material.color = Color.red; break;
@@ -89,7 +77,7 @@ public class InteractiveObject : MonoBehaviour
             case ObjType.Door: r.material.color = new Color(0.4f, 0.2f, 0.1f); break;
             case ObjType.Chest: r.material.color = Color.yellow; break;
             case ObjType.Switch: r.material.color = Color.magenta; break;
-            case ObjType.EarthWall: r.material.color = new Color(0.3f, 0.3f, 0.3f); break; // Темно-серый камень
+            case ObjType.EarthWall: r.material.color = new Color(0.3f, 0.3f, 0.3f); break;
         }
     }
 
@@ -98,18 +86,20 @@ public class InteractiveObject : MonoBehaviour
         Vector3 original = transform.position;
         for (int i = 0; i < 5; i++)
         {
+            if (this == null) yield break; // Проверка существования
             transform.position = original + Random.insideUnitSphere * 0.1f;
             yield return new WaitForSeconds(0.05f);
         }
-        transform.position = original;
+        if (this != null) transform.position = original;
     }
 
     System.Collections.IEnumerator FlashWhite()
     {
         Renderer r = GetComponent<Renderer>();
+        if (r == null) yield break;
         Color old = r.material.color;
         r.material.color = Color.white;
         yield return new WaitForSeconds(0.1f);
-        r.material.color = old;
+        if (r != null) r.material.color = old;
     }
 }
