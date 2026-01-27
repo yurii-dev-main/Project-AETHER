@@ -584,8 +584,10 @@ public class TacticalSystem : MonoBehaviour
     // --- ÎÁÍÎÂËÅÍÍÀß ÎÁÐÀÁÎÒÊÀ ÎÁÚÅÊÒÎÂ ---
     IEnumerator HitObject(InteractiveObject obj, Element element, int damage)
     {
+        if (obj == null) yield break;
         obj.Shake();
-        yield return new WaitForSeconds(0.2f);
+        yield return new WaitForSeconds(0.1f);
+        if (obj == null) yield break;
 
         if (obj.Type == ObjType.EarthWall && element == Element.Fire)
         {
@@ -936,7 +938,7 @@ public class TacticalSystem : MonoBehaviour
                     }
                     yield return new WaitForSeconds(0.2f);
                 }
-                else if (vfxForcePillar != null && spell.MainElement != Element.Air)
+                else if (vfxForcePillar != null)
                 {
                     GameObject pillar = Instantiate(vfxForcePillar, GetWorldPos(targetCenter), Quaternion.identity);
                     Destroy(pillar, 2.0f);
@@ -965,7 +967,7 @@ public class TacticalSystem : MonoBehaviour
         switch (spell.MainElement)
         {
             case Element.Earth:
-                yield return HandleEarth(spell, affectedTiles);
+                yield return HandleEarth(spell, targetCenter, affectedTiles);
                 break;
             case Element.Fire:
                 yield return HandleFire(spell, affectedTiles);
@@ -1016,32 +1018,61 @@ public class TacticalSystem : MonoBehaviour
         return affectedTiles;
     }
 
-    IEnumerator HandleEarth(SpellBlueprint spell, List<GridPos> affectedTiles)
+    IEnumerator HandleEarth(SpellBlueprint spell, GridPos center, List<GridPos> affectedTiles)
     {
         foreach (GridPos tilePos in affectedTiles)
         {
             if (!IsValid(tilePos)) continue;
 
-            if (spell.Motion == MotionType.InstantRay)
+            StartCoroutine(FlashTile(tilePos, spell.VisualColor));
+
+            if (spell.Shape == ShapeType.LineBeam)
             {
-                if (TryDamageEnemyAtTile(tilePos, 15 * spell.PowerLevel))
+                ApplyDamageToTile(tilePos, 15 * spell.PowerLevel);
+            }
+            else if (spell.Shape == ShapeType.Cross)
+            {
+                if (tilePos == center)
                 {
-                    Debug.Log("Earth Spikes hit enemy!");
-                }
-                else if (tilePos == _heroPos)
-                {
-                    _heroStats.TakeDamage(5);
+                    ApplyDamageToTile(tilePos, 10 * spell.PowerLevel);
                 }
                 else if (!IsTileOccupied(tilePos))
                 {
                     CastEarthWall(tilePos, spell.PowerLevel);
                 }
-                continue;
+                else
+                {
+                    if (_interactiveObjects.ContainsKey(tilePos))
+                    {
+                        yield return HitObject(_interactiveObjects[tilePos], Element.Earth, 20 * spell.PowerLevel);
+                    }
+                    ApplyDamageToTile(tilePos, 15 * spell.PowerLevel);
+                }
             }
-
-            yield return ApplyObjectHit(tilePos, spell);
-            ApplyEnemyDamage(tilePos, spell, 1f);
+            else
+            {
+                if (spell.Motion == MotionType.InstantRay)
+                {
+                    if (!IsTileOccupied(tilePos))
+                    {
+                        CastEarthWall(tilePos, spell.PowerLevel);
+                    }
+                    else
+                    {
+                        if (_interactiveObjects.ContainsKey(tilePos))
+                        {
+                            yield return HitObject(_interactiveObjects[tilePos], Element.Earth, 20 * spell.PowerLevel);
+                        }
+                        ApplyDamageToTile(tilePos, 15 * spell.PowerLevel);
+                    }
+                }
+                else
+                {
+                    ApplyDamageToTile(tilePos, 20 * spell.PowerLevel);
+                }
+            }
         }
+        yield return null;
     }
 
     IEnumerator HandleFire(SpellBlueprint spell, List<GridPos> affectedTiles)
@@ -1157,6 +1188,21 @@ public class TacticalSystem : MonoBehaviour
         return false;
     }
 
+    void ApplyDamageToTile(GridPos tilePos, int damage)
+    {
+        foreach (var enemy in _enemies)
+        {
+            if (enemy == null || !enemy.activeSelf) continue;
+            if (GetGridPosFromWorld(enemy.transform.position) == tilePos)
+            {
+                UnitStats enemyStats = enemy.GetComponent<UnitStats>();
+                if (enemyStats != null) enemyStats.TakeDamage(damage);
+                enemy.SetActive(true);
+            }
+        }
+        if (_heroPos == tilePos) _heroStats.TakeDamage(damage);
+    }
+
     IEnumerator ApplyObjectHit(GridPos tilePos, SpellBlueprint spell)
     {
         if (_interactiveObjects.ContainsKey(tilePos))
@@ -1213,6 +1259,11 @@ public class TacticalSystem : MonoBehaviour
                 _walls.Add(tilePos);
                 ResetTileColor(tilePos);
                 CastIceWall(tilePos);
+            }
+            else if (tile.CurrentElement == Element.Fire)
+            {
+                tile.CurrentElement = Element.None;
+                ResetTileColor(tilePos);
             }
         }
     }
@@ -1375,15 +1426,14 @@ public class TacticalSystem : MonoBehaviour
         if (Input.GetMouseButtonDown(0) && !Input.GetMouseButton(1))
         {
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            if (Physics.Raycast(ray, out RaycastHit hit))
+            RaycastHit[] hits = Physics.RaycastAll(ray);
+            foreach (var hit in hits)
             {
-                foreach (var kvp in _gridVisuals)
+                TileData tile = hit.collider.GetComponent<TileData>();
+                if (tile != null)
                 {
-                    if (kvp.Value == hit.collider.gameObject)
-                    {
-                        TryPlanCommand(kvp.Key);
-                        break;
-                    }
+                    TryPlanCommand(tile.Pos);
+                    break;
                 }
             }
         }
