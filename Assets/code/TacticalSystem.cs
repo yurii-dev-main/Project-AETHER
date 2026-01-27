@@ -917,7 +917,7 @@ public class TacticalSystem : MonoBehaviour
             }
             else if (spell.Motion == MotionType.InstantRay)
             {
-                if (spell.Shape == ShapeType.LineBeam && vfxForceBeam != null && _heroInstance != null)
+                if (spell.MainElement != Element.Earth && spell.Shape == ShapeType.LineBeam && vfxForceBeam != null && _heroInstance != null)
                 {
                     Vector3 start = _heroInstance.transform.position + Vector3.up * 0.8f;
                     Vector3 dir = (GetWorldPos(targetCenter) - GetWorldPos(_heroPos)).normalized;
