@@ -584,8 +584,9 @@ public class TacticalSystem : MonoBehaviour
     // --- ÎÁÍÎÂËÅÍÍÀß ÎÁÐÀÁÎÒÊÀ ÎÁÚÅÊÒÎÂ ---
     IEnumerator HitObject(InteractiveObject obj, Element element, int damage)
     {
+        if (obj == null) yield break;
         obj.Shake();
-        yield return new WaitForSeconds(0.2f);
+        yield return new WaitForSeconds(0.1f);
         if (obj == null) yield break;
 
         if (obj.Type == ObjType.EarthWall && element == Element.Fire)
@@ -937,7 +938,7 @@ public class TacticalSystem : MonoBehaviour
                     }
                     yield return new WaitForSeconds(0.2f);
                 }
-                else if (spell.MainElement != Element.Earth && vfxForcePillar != null)
+                else if (vfxForcePillar != null)
                 {
                     GameObject pillar = Instantiate(vfxForcePillar, GetWorldPos(targetCenter), Quaternion.identity);
                     Destroy(pillar, 2.0f);
@@ -1039,6 +1040,14 @@ public class TacticalSystem : MonoBehaviour
                 {
                     CastEarthWall(tilePos, spell.PowerLevel);
                 }
+                else
+                {
+                    if (_interactiveObjects.ContainsKey(tilePos))
+                    {
+                        yield return HitObject(_interactiveObjects[tilePos], Element.Earth, 20 * spell.PowerLevel);
+                    }
+                    ApplyDamageToTile(tilePos, 15 * spell.PowerLevel);
+                }
             }
             else
             {
@@ -1050,6 +1059,10 @@ public class TacticalSystem : MonoBehaviour
                     }
                     else
                     {
+                        if (_interactiveObjects.ContainsKey(tilePos))
+                        {
+                            yield return HitObject(_interactiveObjects[tilePos], Element.Earth, 20 * spell.PowerLevel);
+                        }
                         ApplyDamageToTile(tilePos, 15 * spell.PowerLevel);
                     }
                 }
@@ -1246,6 +1259,11 @@ public class TacticalSystem : MonoBehaviour
                 _walls.Add(tilePos);
                 ResetTileColor(tilePos);
                 CastIceWall(tilePos);
+            }
+            else if (tile.CurrentElement == Element.Fire)
+            {
+                tile.CurrentElement = Element.None;
+                ResetTileColor(tilePos);
             }
         }
     }
