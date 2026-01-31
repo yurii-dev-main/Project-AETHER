@@ -599,6 +599,34 @@ public class TacticalSystem : MonoBehaviour
         yield return new WaitForSeconds(0.1f);
         if (obj == null) yield break;
 
+        // --- ДВЕРЬ ---
+        if (obj.Type == ObjType.Door)
+        {
+            if (element == Element.Fire || element == Element.Air || element == Element.Force)
+            {
+                Debug.Log("Door Breached!");
+                obj.OpenDoor();
+                _walls.Remove(obj.Pos);
+                if (_walls.Contains(obj.Pos)) _walls.Remove(obj.Pos);
+            }
+            yield break;
+        }
+
+        // --- РЫЧАГ ---
+        if (obj.Type == ObjType.Switch)
+        {
+            if (element == Element.Air || element == Element.Force || element == Element.Lightning)
+            {
+                obj.OpenDoor();
+                if (obj.LinkedObject != null && obj.LinkedObject.Type == ObjType.Door)
+                {
+                    obj.LinkedObject.OpenDoor();
+                    _walls.Remove(obj.LinkedObject.Pos);
+                }
+            }
+            yield break;
+        }
+
         if (obj.Type == ObjType.EarthWall && element == Element.Fire)
         {
             Debug.Log("Melting Stone to Magma!");
@@ -613,40 +641,7 @@ public class TacticalSystem : MonoBehaviour
             yield break;
         }
 
-        // --- 1. ÄÂÅÐÜ (BREAKABLE) ---
-        // Ôè÷à: Äâåðü ìîæíî âûáèòü ñèëîé èëè ñæå÷ü
-        if (obj.Type == ObjType.Door)
-        {
-            bool strongWater = element == Element.Water && damage >= 20;
-            if (element == Element.Air || element == Element.Fire || element == Element.Force || strongWater)
-            {
-                Debug.Log("Door BREACHED by Magic!");
-                obj.OpenDoor();
-                _walls.Remove(obj.Pos);
-            }
-            yield break;
-        }
-
-        // --- 2. ÐÛ×ÀÃ ---
-        if (obj.Type == ObjType.Switch)
-        {
-            // Ðû÷àã ðåàãèðóåò íà ôèçè÷åñêîå âîçäåéñòâèå (Air/Force)
-            if (element == Element.Air || element == Element.Force || element == Element.Lightning)
-            {
-                obj.OpenDoor();
-
-                // Ìàãèÿ ñâÿçåé: Îòêðûâàåì ïðèâÿçàííóþ äâåðü
-                if (obj.LinkedObject != null && obj.LinkedObject.Type == ObjType.Door)
-                {
-                    Debug.Log("Door Unlocked via Switch!");
-                    obj.LinkedObject.OpenDoor();
-                    _walls.Remove(obj.LinkedObject.Pos);
-                }
-            }
-            yield break;
-        }
-
-        // --- 3. ÑÓÍÄÓÊ ---
+        // --- СУНДУК ---
         if (obj.Type == ObjType.Chest)
         {
             Debug.Log($"LOOT FOUND: {obj.LootModuleID}");
@@ -659,36 +654,22 @@ public class TacticalSystem : MonoBehaviour
             yield break;
         }
 
-        if (obj.Type == ObjType.EarthWall || obj.Type == ObjType.Crate || obj.Type == ObjType.Barrel)
+        obj.TakeDamage(damage);
+        if (obj.CurrentHP <= 0)
         {
-            obj.TakeDamage(damage);
-            if (obj.CurrentHP <= 0)
+            if (obj.Type == ObjType.Barrel && element == Element.Fire)
             {
-                if (obj.Type == ObjType.Barrel && element == Element.Fire)
-                {
-                    yield return TriggerExplosion(obj.Pos, obj);
-                }
-                else
-                {
-                    DestroyObject(obj.Pos);
-                }
-                yield break;
+                yield return TriggerExplosion(obj.Pos, obj);
+            }
+            else
+            {
+                DestroyObject(obj.Pos);
             }
         }
-
-        // --- 4. ÎÑÒÀËÜÍÎÅ (Áî÷êè, ßùèêè) ---
-        if (element == Element.Ice)
+        else if (element == Element.Air)
         {
-            if (!obj.IsFrozen) obj.Freeze();
-            yield break;
+            yield return PushObjectRoutine(obj);
         }
-        if (element == Element.Fire)
-        {
-            if (obj.IsFrozen) obj.Unfreeze();
-            yield break;
-        }
-        // Òîëêàåì òîëüêî åñëè ýòî íå äâåðü/ðû÷àã/ñóíäóê
-        if (element == Element.Air || element == Element.Force) yield return PushObjectRoutine(obj);
     }
 
     int CountFloorNeighbors(GridPos pos)
@@ -1036,53 +1017,44 @@ public class TacticalSystem : MonoBehaviour
 
             StartCoroutine(FlashTile(tilePos, spell.VisualColor));
 
-            if (spell.Shape == ShapeType.LineBeam)
+            bool hasEnemy = false;
+            foreach (var enemy in _enemies)
             {
-                ApplyDamageToTile(tilePos, 15 * spell.PowerLevel);
-            }
-            else if (spell.Shape == ShapeType.Cross)
-            {
-                if (tilePos == center)
+                if (enemy != null && enemy.activeSelf && GetGridPosFromWorld(enemy.transform.position) == tilePos)
                 {
-                    ApplyDamageToTile(tilePos, 10 * spell.PowerLevel);
-                }
-                else if (!IsTileOccupied(tilePos))
-                {
-                    CastEarthWall(tilePos, spell.PowerLevel);
-                }
-                else
-                {
-                    SpawnEarthSpikes(tilePos, spell.PowerLevel);
-                    if (_interactiveObjects.ContainsKey(tilePos))
-                    {
-                        yield return HitObject(_interactiveObjects[tilePos], Element.Earth, 20 * spell.PowerLevel);
-                    }
-                    ApplyDamageToTile(tilePos, 15 * spell.PowerLevel);
+                    hasEnemy = true;
                 }
             }
-            else
+            bool hasObject = _interactiveObjects.ContainsKey(tilePos);
+            bool hasHero = tilePos == _heroPos;
+            bool isPermWall = _walls.Contains(tilePos) && !hasObject;
+
+            if (!hasEnemy && !hasObject && !hasHero && !isPermWall)
             {
-                if (spell.Motion == MotionType.InstantRay)
+                CastEarthWall(tilePos, spell.PowerLevel);
+            }
+            else if (!isPermWall)
+            {
+                if (vfxEarthSpikes != null)
                 {
-                    if (!IsTileOccupied(tilePos))
-                    {
-                        CastEarthWall(tilePos, spell.PowerLevel);
-                    }
-                    else
-                    {
-                        SpawnEarthSpikes(tilePos, spell.PowerLevel);
-                        if (_interactiveObjects.ContainsKey(tilePos))
-                        {
-                            yield return HitObject(_interactiveObjects[tilePos], Element.Earth, 20 * spell.PowerLevel);
-                        }
-                        ApplyDamageToTile(tilePos, 15 * spell.PowerLevel);
-                    }
+                    GameObject spikes = Instantiate(vfxEarthSpikes, GetWorldPos(tilePos), Quaternion.identity);
+                    Destroy(spikes, 2.0f);
                 }
-                else
+
+                if (hasObject)
                 {
-                    ApplyDamageToTile(tilePos, 20 * spell.PowerLevel);
+                    yield return HitObject(_interactiveObjects[tilePos], Element.Earth, 20 * spell.PowerLevel);
                 }
             }
+
+            foreach (var enemy in _enemies)
+            {
+                if (enemy != null && enemy.activeSelf && GetGridPosFromWorld(enemy.transform.position) == tilePos)
+                {
+                    enemy.GetComponent<UnitStats>().TakeDamage(15 * spell.PowerLevel);
+                }
+            }
+            if (hasHero) _heroStats.TakeDamage(5);
         }
         yield return null;
     }
